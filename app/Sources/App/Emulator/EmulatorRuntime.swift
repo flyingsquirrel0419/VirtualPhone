@@ -116,5 +116,7 @@ protocol EmulatorRuntime: AnyObject {
     func readFrame(into buffer: UnsafeMutableRawPointer?, size: Int) -> FrameReadResult
     func touch(x: Int32, y: Int32, pressed: Bool)
     func button(_ button: RuntimeButton, pressed: Bool)
+    /// The battery the guest shows. Allowed before start (the SMC keeps it).
+    func setBattery(percent: Int32, external: Bool, charging: Bool)
     func metrics() -> RuntimeMetrics
 }

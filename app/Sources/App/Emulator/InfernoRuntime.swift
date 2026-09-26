@@ -116,6 +116,10 @@ final class InfernoRuntime: EmulatorRuntime {
         _ = vp_emulator_button_event(handle, raw, pressed)
     }
 
+    func setBattery(percent: Int32, external: Bool, charging: Bool) {
+        _ = vp_emulator_set_battery(handle, max(0, min(100, percent)), external, charging)
+    }
+
     func metrics() -> RuntimeMetrics {
         var m = vp_metrics()
         vp_emulator_get_metrics(handle, &m)

@@ -13,6 +13,8 @@ struct MachineView: View {
     /// Kept apart from `showImporter`: the importer clears that before its completion runs.
     @State private var importKind = ImportKind.file
     @State private var showServices = false
+    @State private var askFetch = false
+    @State private var fetchPath = "/var/mobile/Documents/"
 
     enum ImportKind { case ipa, file }
 
@@ -49,6 +51,13 @@ struct MachineView: View {
             showServices = true
         }
         .sheet(isPresented: $showServices) { GuestServicesView(services: controller.services) }
+        .alert("Fetch from the guest", isPresented: $askFetch) {
+            TextField("Path in the guest", text: $fetchPath)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Fetch") { controller.services.fetchFile(fetchPath); showServices = true }
+            Button("Cancel", role: .cancel) {}
+        }
         .confirmationDialog("Stop the machine?", isPresented: $confirmStop, titleVisibility: .visible) {
             Button("Stop", role: .destructive) { controller.stop() }
         } message: {
@@ -85,6 +94,8 @@ struct MachineView: View {
                 Button { importKind = .ipa; showImporter = true } label: { Label("Install IPA…", systemImage: "app.badge.plus") }
                     .disabled(!controller.state.isLive)
                 Button { importKind = .file; showImporter = true } label: { Label("Send File to Guest…", systemImage: "doc.badge.arrow.up") }
+                    .disabled(!controller.state.isLive)
+                Button { askFetch = true } label: { Label("Fetch File from Guest…", systemImage: "doc.badge.arrow.down") }
                     .disabled(!controller.state.isLive)
                 Divider()
                 Button { fullscreen = true } label: { Label("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") }

@@ -19,7 +19,7 @@ public final class TCPConnection {
     private var fd: Int32
     private var buffer = [UInt8]()
 
-    private init(fd: Int32) { self.fd = fd }
+    init(fd: Int32) { self.fd = fd }
 
     deinit { close() }
 
@@ -64,6 +64,11 @@ public final class TCPConnection {
     }
 
     public var isOpen: Bool { fd >= 0 }
+
+    /// Bounds each following read and write.
+    public func setTimeout(_ seconds: TimeInterval) {
+        if fd >= 0 { Self.setTimeouts(fd, max(0.05, seconds)) }
+    }
 
     public func close() {
         if fd >= 0 { _ = SystemCall.close(fd); fd = -1 }
@@ -116,6 +121,67 @@ public final class TCPConnection {
             if errno == EINTR { continue }
             throw errno == EAGAIN || errno == EWOULDBLOCK ? Failure.timeout : Failure.io(errno)
         }
+    }
+}
+
+/// A listening socket on 127.0.0.1 that hands out TCPConnections. Slirp maps
+/// the guest's 10.0.2.2 to this process's loopback, so the guest reaches it.
+public final class TCPListener {
+    public enum Failure: Error, Equatable {
+        case socket(Int32)
+        case timeout
+        case accept(Int32)
+    }
+
+    public let port: UInt16
+    private var fd: Int32
+
+    /// `port` 0 picks a free one.
+    public init(port: UInt16 = 0) throws {
+        #if canImport(Glibc)
+        let fd = socket(AF_INET, Int32(SOCK_STREAM.rawValue), 0)
+        #else
+        let fd = socket(AF_INET, SOCK_STREAM, 0)
+        #endif
+        guard fd >= 0 else { throw Failure.socket(errno) }
+        var one: Int32 = 1
+        _ = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, socklen_t(MemoryLayout<Int32>.size))
+        var addr = sockaddr_in()
+        addr.sin_family = sa_family_t(AF_INET)
+        addr.sin_port = port.bigEndian
+        addr.sin_addr.s_addr = inet_addr("127.0.0.1")
+        let size = socklen_t(MemoryLayout<sockaddr_in>.size)
+        let bound = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, size) } }
+        guard bound == 0, listen(fd, 4) == 0 else {
+            let code = errno
+            _ = SystemCall.close(fd)
+            throw Failure.socket(code)
+        }
+        var actual = sockaddr_in()
+        var len = size
+        _ = withUnsafeMutablePointer(to: &actual) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { getsockname(fd, $0, &len) } }
+        self.fd = fd
+        self.port = UInt16(bigEndian: actual.sin_port)
+    }
+
+    deinit { close() }
+
+    public func close() {
+        if fd >= 0 { _ = SystemCall.close(fd); fd = -1 }
+    }
+
+    /// Waits up to `timeout` for one peer; `ioTimeout` bounds each later read and write.
+    public func accept(timeout: TimeInterval, ioTimeout: TimeInterval = 120) throws -> TCPConnection {
+        var p = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        guard fd >= 0, poll(&p, 1, Int32(timeout * 1000)) > 0 else { throw Failure.timeout }
+        #if canImport(Glibc)
+        let conn = Glibc.accept(fd, nil, nil)
+        #else
+        let conn = Darwin.accept(fd, nil, nil)
+        #endif
+        guard conn >= 0 else { throw Failure.accept(errno) }
+        TCPConnection.setTimeouts(conn, ioTimeout)
+        return TCPConnection(fd: conn)
     }
 }
 

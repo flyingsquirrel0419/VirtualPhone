@@ -145,6 +145,8 @@ final class MockEmulatorRuntime: EmulatorRuntime {
         if pressed { AppLogger.shared.log(.input, "Mock button \(button.title)") }
     }
 
+    func setBattery(percent: Int32, external: Bool, charging: Bool) {}
+
     func metrics() -> RuntimeMetrics {
         lock.lock()
         defer { lock.unlock() }

@@ -3,11 +3,19 @@ import SwiftUI
 
 /// Runs one shell command at a time on the guest's console and waits for its
 /// framed result. Blocking; call from a worker thread, never the main one.
-final class GuestShellSession {
+final class GuestShellSession: GuestTransport {
+    let name = "console"
     private let console: GuestConsole
     private let lock = NSLock()
 
     init(console: GuestConsole) { self.console = console }
+
+    /// The console shell exists once the bootstrap's bash has answered.
+    var isConnected: Bool {
+        // `phase` is main-thread state; never sync onto main from main.
+        let phase = Thread.isMainThread ? console.phase : DispatchQueue.main.sync { console.phase }
+        return phase >= .shell && phase != .panicked
+    }
 
     func run(_ command: String, timeout: TimeInterval = 120) -> ShellFrame.Result? {
         lock.lock()
@@ -52,14 +60,40 @@ final class GuestServices: ObservableObject {
     @Published private(set) var outcome: Outcome?
 
     private let console: GuestConsole
-    private let shell: GuestShellSession
+    private let consoleShell: GuestShellSession
+    private var networkShell: NetworkShellTransport?
     private let networkUp: () -> Bool
     private let worker = DispatchQueue(label: "virtualphone.guest")
 
     init(console: GuestConsole, networkUp: @escaping () -> Bool) {
         self.console = console
-        self.shell = GuestShellSession(console: console)
+        self.consoleShell = GuestShellSession(console: console)
         self.networkUp = networkUp
+    }
+
+    /// The network shell when it can be had, the console otherwise. On a worker thread.
+    private var shell: GuestTransport {
+        if networkShell?.isConnected != true, networkUp() {
+            networkShell = connectNetworkShell()
+        }
+        return FallbackTransport([networkShell, consoleShell].compactMap { $0 })
+    }
+
+    /// Asks the guest (over the console) to call back with a bash on a socket.
+    private func connectNetworkShell() -> NetworkShellTransport? {
+        guard consoleShell.isConnected, let transport = try? NetworkShellTransport() else { return nil }
+        let typed = DispatchSemaphore(value: 0)
+        console.send(transport.callbackCommand) { _ in typed.signal() }
+        typed.wait()
+        do {
+            try transport.accept(timeout: 20)
+            note("Shell connected over the guest's network.")
+            return transport
+        } catch {
+            AppLogger.shared.log(.guest, "Network shell did not call back; using the console", level: .warning)
+            transport.close()
+            return nil
+        }
     }
 
     var isBusy: Bool { outcome == .running }
@@ -144,6 +178,40 @@ final class GuestServices: ObservableObject {
                 let target = directory + "/" + url.lastPathComponent
                 _ = try transfer(url, to: target)
                 finish(.succeeded("Saved as \(target) in the guest."))
+            } catch {
+                finish(.failed(error.localizedDescription))
+            }
+        }
+    }
+
+    /// Copies `guestPath` out of the guest into Documents/FromGuest.
+    func fetchFile(_ guestPath: String) {
+        guard begin("Fetch \((guestPath as NSString).lastPathComponent) from the guest") else { return }
+        let offline = requireShell(), networkUp = networkUp()
+        worker.async { [self] in
+            if let offline { return finish(.failed(offline)) }
+            if !networkUp { return finish(.failed("The guest network is down. Use Reconnect Guest Network first.")) }
+            do {
+                let folder = AppModel.documents.appendingPathComponent("FromGuest", isDirectory: true)
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let target = folder.appendingPathComponent((guestPath as NSString).lastPathComponent)
+                let server = try FileTransferServer()
+                var received: Result<(crc: UInt32, length: Int64), Error>?
+                let done = DispatchSemaphore(value: 0)
+                DispatchQueue.global(qos: .userInitiated).async {
+                    received = Result { try server.receive(to: target, timeout: 90) }
+                    done.signal()
+                }
+                let r = shell.run(GuestCommand.sendFile(guestPath, port: server.port), timeout: 900)
+                done.wait()
+                server.close()
+                guard let r else { throw GuestError("No answer from the guest shell.") }
+                if let why = GuestCommand.diagnose(r.output) { throw GuestError(why) }
+                guard r.status == 0 else { throw GuestError("Sending from the guest failed with status \(r.status).") }
+                guard case .success(let got)? = received,
+                      let sum = r.output.compactMap(PosixCksum.parse).last, sum.crc == got.crc, sum.length == got.length
+                else { throw GuestError("The file arrived incomplete or its checksum does not match.") }
+                finish(.succeeded("Saved to Files → VirtualPhone → FromGuest → \(target.lastPathComponent)."))
             } catch {
                 finish(.failed(error.localizedDescription))
             }

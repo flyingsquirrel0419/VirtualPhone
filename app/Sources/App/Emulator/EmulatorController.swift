@@ -20,6 +20,7 @@ final class EmulatorController: ObservableObject {
     let runtime: EmulatorRuntime
     let console: GuestConsole
     private(set) var services: GuestServices!
+    private lazy var battery = BatterySync(runtime: runtime)
     var isMock: Bool { runtime is MockEmulatorRuntime }
 
     private var pump: Thread?
@@ -52,6 +53,7 @@ final class EmulatorController: ObservableObject {
     func start(arguments: [String]) {
         console.begin()
         if !isMock { package.markRunning() }
+        battery.start()
         do {
             try runtime.start(arguments: arguments)
         } catch {
@@ -81,6 +83,7 @@ final class EmulatorController: ObservableObject {
             startPump()
         case .stopped, .failed:
             console.end()
+            battery.stop()
             if !isMock { package.markStopped() }
             pumpState.running = false
             pump = nil
