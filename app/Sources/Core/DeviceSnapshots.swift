@@ -72,15 +72,20 @@ public enum DeviceSnapshots {
         let oldNVRAM = package.url.appendingPathComponent(".nvram.old")
         try? fm.removeItem(at: oldRoot)
         try? fm.removeItem(at: oldNVRAM)
-        if fm.fileExists(atPath: overlay.path) { try fm.moveItem(at: overlay, to: oldRoot) }
-        if fm.fileExists(atPath: nvram.path) { try fm.moveItem(at: nvram, to: oldNVRAM) }
+        var movedRoot = false, movedNVRAM = false, installedNVRAM = false
         do {
+            if fm.fileExists(atPath: overlay.path) { try fm.moveItem(at: overlay, to: oldRoot); movedRoot = true }
+            if fm.fileExists(atPath: nvram.path) { try fm.moveItem(at: nvram, to: oldNVRAM); movedNVRAM = true }
             try fm.moveItem(at: newNVRAM, to: nvram)
+            installedNVRAM = true
             try fm.moveItem(at: newRoot, to: overlay) // last: DeviceState.exists() keys on it
         } catch {
-            try? fm.removeItem(at: nvram)
-            try? fm.moveItem(at: oldNVRAM, to: nvram)
-            try? fm.moveItem(at: oldRoot, to: overlay)
+            // Put back exactly what was moved.
+            if installedNVRAM { try? fm.removeItem(at: nvram) }
+            if movedNVRAM { try? fm.moveItem(at: oldNVRAM, to: nvram) }
+            if movedRoot { try? fm.moveItem(at: oldRoot, to: overlay) }
+            try? fm.removeItem(at: newRoot)
+            try? fm.removeItem(at: newNVRAM)
             throw error
         }
         try? fm.removeItem(at: oldRoot)

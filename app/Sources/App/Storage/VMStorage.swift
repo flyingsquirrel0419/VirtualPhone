@@ -7,6 +7,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var brokenPackages: [URL] = []
     @Published private(set) var jit: JITStatus = .unavailable(reason: "not checked yet")
     @Published var errorMessage: String?
+    /// The machine of this app launch. Owned here, not by its screen: leaving
+    /// the screen must never orphan a QEMU that is still booting or running.
+    @Published var active: EmulatorController?
 
     let build = BuildMetadata(infoDictionary: Bundle.main.infoDictionary ?? [:])
 

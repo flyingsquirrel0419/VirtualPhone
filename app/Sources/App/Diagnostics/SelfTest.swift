@@ -48,7 +48,8 @@ enum SelfTest {
             }.start()
             let sent = try server.send(src, timeout: 5)
             server.close()
-            _ = done.wait(timeout: .now() + 5)
+            // Read `received` only once the reader has finished with it.
+            guard done.wait(timeout: .now() + 5) == .success else { return false }
             var sum = PosixCksum()
             sum.update(payload)
             return received == payload && sent.crc == sum.value

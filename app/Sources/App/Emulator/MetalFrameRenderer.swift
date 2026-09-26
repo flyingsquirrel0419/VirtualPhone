@@ -16,8 +16,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private var textures: [MTLTexture] = []
     private var newest = -1
     private var writing = 0
-    /// The texture an in-flight command buffer samples, or -1.
-    private var drawing = -1
+    /// Command buffers still sampling each texture (MTKView keeps up to three in flight).
+    private var inFlight = [0, 0, 0]
     private(set) var size = (width: 0, height: 0)
     weak var view: MTKView?
 
@@ -64,10 +64,13 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             textures = (0..<3).compactMap { _ in device.makeTexture(descriptor: d) }
             size = (width, height)
             newest = -1
+            inFlight = [0, 0, 0]
         }
         guard textures.count == 3 else { lock.unlock(); return }
-        // Neither the newest (about to be shown) nor the one on the GPU now.
-        writing = (0..<3).first { $0 != newest && $0 != drawing } ?? (newest + 1) % 3
+        // Neither the newest (about to be shown) nor one the GPU still reads.
+        // With all three busy the frame is dropped rather than torn.
+        guard let free = (0..<3).first(where: { $0 != newest && inFlight[$0] == 0 }) else { lock.unlock(); return }
+        writing = free
         let texture = textures[writing]
         lock.unlock()
 
@@ -84,14 +87,16 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         lock.lock()
-        let index = newest
-        let texture = index >= 0 ? textures[index] : nil
-        let frame = size
-        drawing = index
-        lock.unlock()
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
               let buffer = queue.makeCommandBuffer(),
               let encoder = buffer.makeRenderCommandEncoder(descriptor: pass) else { return }
+        lock.lock()
+        let index = newest
+        let texture = index >= 0 ? textures[index] : nil
+        let frame = size
+        let generation = textures.first.map { ObjectIdentifier($0) }
+        if index >= 0 { inFlight[index] += 1 }
+        lock.unlock()
         if let texture, frame.width > 0 {
             let drawableSize = view.drawableSize
             let mapper = CoordinateMapper(view: Size2D(width: Double(drawableSize.width), height: Double(drawableSize.height)),
@@ -104,11 +109,16 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         }
         encoder.endEncoding()
-        buffer.addCompletedHandler { [weak self] _ in
-            guard let self else { return }
-            self.lock.lock()
-            if self.drawing == index { self.drawing = -1 }
-            self.lock.unlock()
+        if index >= 0 {
+            buffer.addCompletedHandler { [weak self] _ in
+                guard let self else { return }
+                self.lock.lock()
+                // Only for the same set of textures (a resize replaces them).
+                if self.textures.first.map({ ObjectIdentifier($0) }) == generation, self.inFlight[index] > 0 {
+                    self.inFlight[index] -= 1
+                }
+                self.lock.unlock()
+            }
         }
         buffer.present(drawable)
         buffer.commit()

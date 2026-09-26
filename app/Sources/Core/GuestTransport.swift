@@ -79,13 +79,16 @@ public final class NetworkShellTransport: GuestTransport {
             let deadline = Date() + timeout
             while true {
                 let remaining = deadline.timeIntervalSinceNow
-                guard remaining > 0 else { return .timedOut }
+                guard remaining > 0 else { c.close(); return .timedOut }
                 c.setTimeout(remaining)
                 let line = String(decoding: try c.readLine(), as: UTF8.self)
                 if let result = parser.feed(line.hasSuffix("\r") ? String(line.dropLast()) : line) { return .result(result) }
             }
         } catch TCPConnection.Failure.timeout {
-            // Late output of this command carries its own frame id and is ignored later.
+            // No answer: on this guest that usually means the network dropped
+            // and slirp kept the socket half-open. Drop the channel, so the next
+            // command goes to the console instead of into a dead socket.
+            c.close()
             return .timedOut
         } catch {
             // Sent, then the channel broke: the command may have run, so no retry.

@@ -83,11 +83,12 @@ previous_log app-console-run.log
 
 echo "==> self-test on the iOS runtime"
 pid="$(launch -VPSelfTest YES)"
-previous_log app-metal-run.log
+# Only once this run has started (and so rotated the log) is app.prev.log the Metal run's.
 for _ in $(seq 1 30); do
     grep -q "SELFTEST DONE" "$DATA/Documents/Logs/app.log" 2>/dev/null && break
     sleep 1
 done
+previous_log app-metal-run.log
 cp "$DATA/Documents/Logs/app.log" "$OUT/app-selftest.log"
 xcrun simctl terminate "$UDID" "$BUNDLE" || true
 

@@ -61,26 +61,17 @@ struct MachineView: View {
         .confirmationDialog("Stop the machine?", isPresented: $confirmStop, titleVisibility: .visible) {
             Button("Stop", role: .destructive) { controller.stop() }
         } message: {
-            Text("The guest is powered off. Starting another machine needs an app relaunch.")
-        }
-    }
-
-    private var canDismiss: Bool {
-        switch controller.state {
-        case .idle, .stopped, .failed: return true
-        default: return false
+            Text("The guest is powered off and its disks are written back. Starting another machine needs an app relaunch.")
         }
     }
 
     private var topBar: some View {
         HStack {
-            Button {
-                if controller.state.isLive { confirmStop = true } else if canDismiss { dismiss() }
-            } label: {
+            // Leaving never stops the machine: the app model keeps it, and the
+            // device list offers the way back. Stop is in the menu.
+            Button { dismiss() } label: {
                 Label("Back", systemImage: "chevron.left")
             }
-            // Leaving while QEMU boots or shuts down would orphan it: wait.
-            .disabled(!controller.state.isLive && !canDismiss)
             Spacer()
             if controller.isMock { StatusBadge(text: "Mock", color: .purple) }
             PhaseBadge(console: controller.console)
@@ -111,9 +102,7 @@ struct MachineView: View {
                 Divider()
                 Button { fullscreen = true } label: { Label("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") }
                 Toggle(isOn: $overlay) { Label("Debug overlay", systemImage: "gauge") }
-                if canDismiss {
-                    Button { dismiss() } label: { Label("Close", systemImage: "xmark") }
-                }
+
             } label: {
                 Image(systemName: "ellipsis.circle").font(.title3)
             }

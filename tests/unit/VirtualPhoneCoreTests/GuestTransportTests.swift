@@ -31,9 +31,10 @@ final class GuestTransportTests: XCTestCase {
         XCTAssertNotEqual(missing.status, 0)
         XCTAssertTrue(missing.output.joined().contains("No such file"))
         XCTAssertEqual(shell.run("printf 'no newline'", timeout: 5)?.output, ["no newline"])
-        // A slow command times out; the next one is not confused by its late output.
+        // A command that times out drops the channel (it may be a dead, half-open socket).
         XCTAssertNil(shell.run("sleep 1; echo late", timeout: 0.3))
-        XCTAssertEqual(shell.run("echo next", timeout: 5)?.output, ["next"])
+        XCTAssertFalse(shell.isConnected)
+        XCTAssertEqual(shell.execute("echo next", timeout: 1), .unavailable)
     }
 
     func testFallbackSkipsDisconnected() throws {

@@ -8,7 +8,7 @@ struct LibraryView: View {
     @State private var renameText = ""
     @State private var deleting: VMPackage?
     @State private var editing: VMPackage?
-    @State private var running: EmulatorController?
+    @State private var showMachine = false
     @State private var notReady: (VMPackage, [String])?
     @State private var showDiagnostics = false
 
@@ -16,6 +16,9 @@ struct LibraryView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if let active = model.active {
+                        ActiveMachineBanner(controller: active) { showMachine = true }
+                    }
                     jitBanner
                     if model.packages.isEmpty {
                         emptyState
@@ -53,7 +56,9 @@ struct LibraryView: View {
         .sheet(isPresented: $creating) { CreateDeviceView().environmentObject(model) }
         .sheet(item: $editing) { package in MachineSettingsView(package: package).environmentObject(model) }
         .sheet(isPresented: $showDiagnostics) { DiagnosticsView().environmentObject(model) }
-        .fullScreenCover(item: $running) { controller in MachineView(controller: controller) }
+        .fullScreenCover(isPresented: $showMachine) {
+            if let controller = model.active { MachineView(controller: controller) }
+        }
         .alert("Rename", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $renameText)
             Button("Rename") { if let p = renaming { model.rename(p, to: renameText) } }
@@ -120,7 +125,7 @@ struct LibraryView: View {
     /// a demo device and boots it on the mock runtime at once: how the
     /// simulator smoke test (scripts/sim-smoke.sh) exercises the app unattended.
     private func autoDemoIfAsked() {
-        guard UserDefaults.standard.bool(forKey: "VPAutoDemo"), running == nil else { return }
+        guard UserDefaults.standard.bool(forKey: "VPAutoDemo"), model.active == nil else { return }
         let name = "Demo iPhone"
         if !model.packages.contains(where: { $0.configuration.name == name }) {
             model.create(name: name, preset: .iphone11)
@@ -139,6 +144,13 @@ struct LibraryView: View {
     }
 
     private func launch(_ package: VMPackage, mock: Bool, arguments: [String] = ["mock"]) {
+        if let active = model.active, active.state != .idle {
+            if case .stopped = active.state {} else if case .failed = active.state {} else {
+                // One machine per launch, and this one is still going: show it.
+                showMachine = true
+                return
+            }
+        }
         do {
             let runtime: EmulatorRuntime
             if mock {
@@ -149,7 +161,8 @@ struct LibraryView: View {
             }
             if !mock { model.prepareWorkingDirectory(for: package) }
             let controller = EmulatorController(package: package, runtime: runtime)
-            running = controller
+            model.active = controller
+            showMachine = true
             controller.start(arguments: arguments)
         } catch {
             model.errorMessage = error.localizedDescription
@@ -239,5 +252,26 @@ struct CreateDeviceView: View {
                 }
             }
         }
+    }
+}
+
+/// "A machine is running" — the way back to it after leaving its screen.
+struct ActiveMachineBanner: View {
+    @ObservedObject var controller: EmulatorController
+    let open: () -> Void
+
+    var body: some View {
+        Button(action: open) {
+            HStack {
+                StatusBadge(text: controller.state.label, color: controller.state.color)
+                Text(controller.package.configuration.name).font(.subheadline.weight(.semibold))
+                Spacer()
+                Text("Open").font(.subheadline)
+                Image(systemName: "chevron.right").font(.caption)
+            }
+            .padding(12)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 }

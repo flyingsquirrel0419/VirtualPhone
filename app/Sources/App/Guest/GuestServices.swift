@@ -96,6 +96,11 @@ final class GuestServices: ObservableObject {
         return FallbackTransport(candidates.compactMap { $0 })
     }
 
+    private func dropNetworkShell() {
+        networkShell?.close()
+        networkShell = nil
+    }
+
     /// Asks the guest (over the console) to call back with a bash on a socket.
     private func connectNetworkShell() -> NetworkShellTransport? {
         guard consoleShell.isConnected, let transport = try? NetworkShellTransport() else { return nil }
@@ -148,7 +153,9 @@ final class GuestServices: ObservableObject {
         worker.async { [self] in
             if let offline { return finish(.failed(offline)) }
             note("Running `\(GuestCommand.reconnectNetwork)` in the guest…")
-            guard let r = shell.run(GuestCommand.reconnectNetwork, timeout: 60) else {
+            // Over the console: the network is what is being repaired.
+            dropNetworkShell()
+            guard let r = consoleShell.run(GuestCommand.reconnectNetwork, timeout: 60) else {
                 return finish(.failed("No answer from the guest shell."))
             }
             r.output.forEach(note)
@@ -180,12 +187,13 @@ final class GuestServices: ObservableObject {
                 DispatchQueue.main.async { self.zoneSet = true }
             }
             guard networkEnabled, UserDefaults.standard.object(forKey: "VPAutoRecoverNetwork") as? Bool ?? true else { return }
-            if let r = shell.run(GuestCommand.networkCheck, timeout: 20), r.status != 0 {
+            // Checked over the console, which does not depend on the network;
+            // no answer counts as down too.
+            let check = consoleShell.run(GuestCommand.networkCheck, timeout: 20)
+            if check == nil || check?.status != 0 {
                 AppLogger.shared.log(.network, "Guest cannot reach the host; asking it for a new address", level: .warning)
-                // Over the console: the network shell is what just failed.
+                dropNetworkShell()
                 _ = consoleShell.run(GuestCommand.reconnectNetwork, timeout: 60)
-                networkShell?.close()
-                networkShell = nil
             }
         }
     }
@@ -266,8 +274,11 @@ final class GuestServices: ObservableObject {
                 guard case .success(let got)? = received,
                       let sum = r.output.compactMap(PosixCksum.parse).last, sum.crc == got.crc, sum.length == got.length
                 else { throw GuestError("The file arrived incomplete or its checksum does not match.") }
-                _ = try? FileManager.default.removeItem(at: target)
-                try FileManager.default.moveItem(at: partial, to: target)
+                if FileManager.default.fileExists(atPath: target.path) {
+                    _ = try FileManager.default.replaceItemAt(target, withItemAt: partial)
+                } else {
+                    try FileManager.default.moveItem(at: partial, to: target)
+                }
                 finish(.succeeded("Saved to Files → VirtualPhone → FromGuest → \(target.lastPathComponent)."))
             } catch {
                 finish(.failed(error.localizedDescription))

@@ -232,6 +232,17 @@ vp_emulator *vp_emulator_create(const char *library_path, char *error, size_t er
     return emu;
 }
 
+static void free_argv(vp_emulator *emu)
+{
+    if (!emu->argv)
+        return;
+    for (int i = 0; emu->argv[i]; i++)
+        free(emu->argv[i]);
+    free(emu->argv);
+    emu->argv = NULL;
+    emu->argc = 0;
+}
+
 int vp_emulator_destroy(vp_emulator *emu)
 {
     vp_state s;
@@ -247,11 +258,7 @@ int vp_emulator_destroy(vp_emulator *emu)
         return VP_ERR_STATE;
     if (joinable)
         pthread_join(emu->thread, NULL);
-    if (emu->argv) {
-        for (int i = 0; emu->argv[i]; i++)
-            free(emu->argv[i]);
-        free(emu->argv);
-    }
+    free_argv(emu);
     pthread_cond_destroy(&emu->done_cond);
     pthread_mutex_destroy(&emu->control);
     pthread_mutex_destroy(&emu->lock);
@@ -340,7 +347,8 @@ int vp_emulator_start(vp_emulator *emu, int argc, const char *const *argv)
     }
 
     /* Until the thread runs, QEMU has not been touched: a failure here gives
-     * the process back its one start. */
+     * the process back its one start (and a later start its own argv). */
+    free_argv(emu);
     emu->argv = calloc((size_t)argc + 1, sizeof(char *));
     if (!emu->argv) {
         atomic_store(&g_spent, false);
@@ -350,6 +358,7 @@ int vp_emulator_start(vp_emulator *emu, int argc, const char *const *argv)
     for (int i = 0; i < argc; i++) {
         emu->argv[i] = strdup(argv[i]);
         if (!emu->argv[i]) {
+            free_argv(emu);
             atomic_store(&g_spent, false);
             set_error(emu, "out of memory");
             return VP_ERR_SYSTEM;
@@ -364,6 +373,7 @@ int vp_emulator_start(vp_emulator *emu, int argc, const char *const *argv)
     rc = pthread_create(&emu->thread, &attr, emulator_thread, emu);
     pthread_attr_destroy(&attr);
     if (rc != 0) {
+        free_argv(emu);
         atomic_store(&g_spent, false);
         set_error(emu, "pthread_create: %s", strerror(rc));
         pthread_mutex_lock(&emu->lock);

@@ -84,6 +84,8 @@ final class EmulatorController: ObservableObject {
     }
 
     private func stateChanged(_ new: RuntimeState) {
+        // A failure is final here: late .starting/.idle deliveries must not hide it.
+        if case .failed = state, new == .idle || new == .starting { return }
         state = new
         switch new {
         case .running where pump == nil:
