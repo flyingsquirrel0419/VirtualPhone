@@ -120,9 +120,12 @@ struct LibraryView: View {
 
     private func launch(_ package: VMPackage, mock: Bool, arguments: [String] = ["mock"]) {
         do {
-            let runtime: EmulatorRuntime = mock
-                ? MockEmulatorRuntime(preset: package.configuration.displayPreset)
-                : try InfernoRuntime()
+            let runtime: EmulatorRuntime
+            if mock {
+                runtime = MockEmulatorRuntime(preset: package.configuration.displayPreset)
+            } else {
+                runtime = try InfernoRuntime()
+            }
             if !mock { model.prepareWorkingDirectory(for: package) }
             let controller = EmulatorController(package: package, runtime: runtime)
             running = controller
