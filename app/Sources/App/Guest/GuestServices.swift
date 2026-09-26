@@ -187,10 +187,11 @@ final class GuestServices: ObservableObject {
                 DispatchQueue.main.async { self.zoneSet = true }
             }
             guard networkEnabled, UserDefaults.standard.object(forKey: "VPAutoRecoverNetwork") as? Bool ?? true else { return }
-            // Checked over the console, which does not depend on the network;
-            // no answer counts as down too.
-            let check = consoleShell.run(GuestCommand.networkCheck, timeout: 20)
-            if check == nil || check?.status != 0 {
+            // Checked over the console, which does not depend on the network.
+            // Only a ping that ran and failed counts: a console too busy to
+            // answer says nothing about the network, and recovering over it
+            // would not help anyway.
+            if let check = consoleShell.run(GuestCommand.networkCheck, timeout: 20), check.status != 0 {
                 AppLogger.shared.log(.network, "Guest cannot reach the host; asking it for a new address", level: .warning)
                 dropNetworkShell()
                 _ = consoleShell.run(GuestCommand.reconnectNetwork, timeout: 60)

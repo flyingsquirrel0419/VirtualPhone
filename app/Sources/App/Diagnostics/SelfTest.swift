@@ -101,8 +101,7 @@ enum SelfTest {
             let pixels = UnsafeMutableRawPointer.allocate(byteCount: 64 * 32 * 4, alignment: 16)
             defer { pixels.deallocate() }
             memset(pixels, 0x7F, 64 * 32 * 4)
-            renderer.upload(pixels, width: 64, height: 32)
-            return renderer.size == (64, 32)
+            return renderer.upload(pixels, width: 64, height: 32) && renderer.size == (64, 32)
         }
 
         check("qmp-codec") {

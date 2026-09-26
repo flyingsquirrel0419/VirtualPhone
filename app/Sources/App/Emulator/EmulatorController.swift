@@ -127,10 +127,11 @@ final class EmulatorController: ObservableObject {
                 // Core Graphics path copies them into an image SwiftUI owns.
                 var image: CGImage?
                 if let metal {
-                    metal.upload(pixels, width: width, height: height)
+                    // All textures busy: the pump offers this frame again.
+                    guard metal.upload(pixels, width: width, height: height) else { return false }
                 } else {
                     image = EmulatorController.makeImage(pixels, width: width, height: height)
-                    if image == nil { return }
+                    if image == nil { return true }
                 }
                 DispatchQueue.main.async {
                     guard let self else { return }
@@ -142,6 +143,7 @@ final class EmulatorController: ObservableObject {
                     if self.frameSize != (width, height) { self.frameSize = (width, height) }
                     self.fps = fps
                 }
+                return true
             }
         }
         thread.name = "virtualphone.display"
@@ -161,13 +163,17 @@ final class EmulatorController: ObservableObject {
 
     /// Polls at display rate. A pass with nothing new costs one lock inside
     /// the emulator; `deliver` gets the whole current frame each time it changed.
+    /// A frame `deliver` declines is offered again until taken: the emulator
+    /// reports a frame only once, and a static screen would otherwise keep the
+    /// one before it.
     private static func pumpLoop(runtime: EmulatorRuntime, state: PumpState,
-                                 deliver: @escaping (UnsafeMutableRawPointer, Int, Int, Double) -> Void) {
+                                 deliver: @escaping (UnsafeMutableRawPointer, Int, Int, Double) -> Bool) {
         var buffer: UnsafeMutableRawPointer?
         var capacity = 0
         var frames = 0
         var windowStart = Date()
         var fps = 0.0
+        var pending: (w: Int, h: Int)?
         defer { buffer?.deallocate() }
 
         while state.running {
@@ -176,6 +182,7 @@ final class EmulatorController: ObservableObject {
                 buffer?.deallocate()
                 capacity = w * h * 4
                 buffer = UnsafeMutableRawPointer.allocate(byteCount: capacity, alignment: 16)
+                pending = nil
                 continue
             case .frame(let w, let h):
                 guard let buffer else { break }
@@ -186,9 +193,10 @@ final class EmulatorController: ObservableObject {
                     frames = 0
                     windowStart = Date()
                 }
-                deliver(buffer, w, h, fps)
+                pending = deliver(buffer, w, h, fps) ? nil : (w, h)
             case .none, .unavailable:
-                break
+                // The buffer still holds the declined frame (nothing new was copied in).
+                if let p = pending, let buffer { pending = deliver(buffer, p.w, p.h, fps) ? nil : p }
             }
             usleep(8_000)
         }

@@ -56,7 +56,9 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     }
 
     /// Pump thread: copies a whole a8r8g8b8 frame (B,G,R,A bytes) into the next texture.
-    func upload(_ pixels: UnsafeMutableRawPointer, width: Int, height: Int) {
+    /// Returns false when every texture is busy; the caller offers the frame again.
+    @discardableResult
+    func upload(_ pixels: UnsafeMutableRawPointer, width: Int, height: Int) -> Bool {
         lock.lock()
         if size != (width, height) {
             let d = MTLTextureDescriptor.texture2DDescriptor(pixelFormat: .bgra8Unorm, width: width, height: height, mipmapped: false)
@@ -67,10 +69,10 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             newest = -1
             inFlight = [0, 0, 0]
         }
-        guard textures.count == 3 else { lock.unlock(); return }
+        guard textures.count == 3 else { lock.unlock(); return true } // no textures: nothing to retry
         // Neither the newest (about to be shown) nor one the GPU still reads.
-        // With all three busy the frame is dropped rather than torn.
-        guard let free = (0..<3).first(where: { $0 != newest && inFlight[$0] == 0 }) else { lock.unlock(); return }
+        // With all three busy the frame waits rather than tears.
+        guard let free = (0..<3).first(where: { $0 != newest && inFlight[$0] == 0 }) else { lock.unlock(); return false }
         writing = free
         let texture = textures[writing]
         lock.unlock()
@@ -82,6 +84,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         newest = writing
         lock.unlock()
         DispatchQueue.main.async { [weak self] in self?.view?.setNeedsDisplay() }
+        return true
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
