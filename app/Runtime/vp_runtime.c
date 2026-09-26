@@ -246,6 +246,8 @@ void vp_emulator_set_state_callback(vp_emulator *emu, vp_state_callback cb, void
 static void *emulator_thread(void *arg)
 {
     vp_emulator *emu = arg;
+    vp_state_callback cb;
+    void *ctx;
     int status;
 
     /* qemu_init calls exit() on a bad command line; the Swift side validates
@@ -266,13 +268,21 @@ static void *emulator_thread(void *arg)
     if (emu->bql_locked && emu->bql_unlock && emu->bql_locked())
         emu->bql_unlock();
 
+    /* State, status and `done` change together: whoever wakes from
+     * vp_emulator_wait must already see STOPPED (and may then destroy). The
+     * callback runs after, still before any destroy can finish: destroy
+     * joins this thread. */
     pthread_mutex_lock(&emu->lock);
     emu->exit_status = status;
+    emu->state = VP_STATE_STOPPED;
     emu->done = true;
+    cb = emu->callback;
+    ctx = emu->callback_context;
     pthread_cond_broadcast(&emu->done_cond);
     pthread_mutex_unlock(&emu->lock);
 
-    transition(emu, VP_STATE_STOPPED, status);
+    if (cb)
+        cb(ctx, VP_STATE_STOPPED, status);
     return NULL;
 }
 

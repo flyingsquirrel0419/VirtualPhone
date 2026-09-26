@@ -63,6 +63,13 @@ jobs:
       - run: tests/emulator/run.sh
       - name: Same with clang
         run: CC=clang tests/emulator/run.sh
+      - name: ThreadSanitizer, repeated (lifecycle races)
+        run: |
+          SANITIZE="-fsanitize=thread" CC=clang tests/emulator/run.sh
+          for i in $(seq 1 100); do
+            build/tests/emulator/test_runtime spent build/tests/emulator/libmock_qemu.so > /dev/null
+            build/tests/emulator/test_runtime full build/tests/emulator/libmock_qemu.so > /dev/null
+          done
 
   swift-core:
     name: Swift core tests
