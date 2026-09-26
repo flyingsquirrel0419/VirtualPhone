@@ -24,6 +24,7 @@ final class AppModel: ObservableObject {
         AppLogger.shared.log(.app, "\(build.title) (\(build.subtitle)) launched")
         reload()
         refreshJIT()
+        if SelfTest.requested { SelfTest.runInBackground() }
     }
 
     func reload() {

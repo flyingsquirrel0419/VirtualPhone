@@ -91,6 +91,8 @@ struct MachineView: View {
                     Label("Reconnect Guest Network", systemImage: "network")
                 }
                 .disabled(!controller.state.isLive)
+                Button { controller.press(.ringer) } label: { Label("Toggle Ring/Silent Switch", systemImage: "bell.slash") }
+                    .disabled(!controller.state.isLive)
                 Button { importKind = .ipa; showImporter = true } label: { Label("Install IPA…", systemImage: "app.badge.plus") }
                     .disabled(!controller.state.isLive)
                 Button { importKind = .file; showImporter = true } label: { Label("Send File to Guest…", systemImage: "doc.badge.arrow.up") }
@@ -114,7 +116,12 @@ struct MachineView: View {
     private var screen: some View {
         GeometryReader { geo in
             ZStack {
-                if let frame = controller.frame {
+                if let metal = controller.metal {
+                    MetalFrameView(renderer: metal)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .opacity(controller.hasFrame ? 1 : 0)
+                    if !controller.hasFrame { placeholder }
+                } else if let frame = controller.frame {
                     Image(decorative: frame, scale: 1)
                         .resizable()
                         .interpolation(.medium)
@@ -163,7 +170,7 @@ struct MachineView: View {
 
     private var buttonBar: some View {
         HStack(spacing: 0) {
-            ForEach(RuntimeButton.allCases) { button in
+            ForEach(RuntimeButton.barButtons) { button in
                 Button {
                     controller.press(button)
                 } label: {
@@ -202,7 +209,7 @@ struct DebugOverlay: View {
             Text("presented \(m.framesPresented)/s · refresh \(m.displayRefreshes)/s")
             Text("uptime \(m.uptimeMS / 1000)s · touches \(m.touchesSent) · buttons \(m.buttonsSent)")
             Text("tb \(controller.package.configuration.translatorCacheMB) MB · guest RAM \(controller.package.configuration.memoryMB) MB")
-            Text("host RAM \(HostInfo.residentMB) MB · network \(m.netLinkUp ? "up" : "down")")
+            Text(String(format: "host CPU %.0f%% · host RAM %ld MB · network %@", controller.hostCPU, HostInfo.residentMB, m.netLinkUp ? "up" : "down"))
             Text("runtime \(controller.runtime.name) · qmp \(console.qmpStatus ?? "—")")
             ForEach(console.transitions, id: \.phase) { t in
                 Text(String(format: "%@ at %.1fs", t.phase.label, t.elapsed))

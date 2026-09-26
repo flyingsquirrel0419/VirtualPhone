@@ -140,6 +140,40 @@ final class GuestServices: ObservableObject {
         }
     }
 
+    // MARK: - Background upkeep
+
+    private var lastUpkeep = Date.distantPast
+
+    /// Called periodically: once the shell is up, gives the guest the phone's
+    /// time zone (once) and brings its network back if it dropped — a known
+    /// behaviour of this guest (upstream Inferno-iOS). Silent unless it acts.
+    private var zoneSet = false
+
+    func upkeep(networkEnabled: Bool) {
+        guard !isBusy, requireShell() == nil, Date().timeIntervalSince(lastUpkeep) > 55 else { return }
+        lastUpkeep = Date()
+        let zone = TimeZone.current.identifier
+        let setZone = !zoneSet && UserDefaults.standard.object(forKey: "VPSyncTimeZone") as? Bool ?? true
+        worker.async { [self] in
+            if setZone, let command = GuestCommand.setTimeZone(zone), let r = shell.run(command, timeout: 60) {
+                if r.output.last == "NOZONE" {
+                    AppLogger.shared.log(.guest, "Time zone \(zone) is not in the guest's zoneinfo", level: .warning)
+                } else if r.status == 0 {
+                    AppLogger.shared.log(.guest, "Guest time zone → \(zone)")
+                }
+                DispatchQueue.main.async { self.zoneSet = true }
+            }
+            guard networkEnabled, UserDefaults.standard.object(forKey: "VPAutoRecoverNetwork") as? Bool ?? true else { return }
+            if let r = shell.run(GuestCommand.networkCheck, timeout: 20), r.status != 0 {
+                AppLogger.shared.log(.network, "Guest cannot reach the host; asking it for a new address", level: .warning)
+                // Over the console: the network shell is what just failed.
+                _ = consoleShell.run(GuestCommand.reconnectNetwork, timeout: 60)
+                networkShell?.close()
+                networkShell = nil
+            }
+        }
+    }
+
     // MARK: - Files
 
     /// Moves `file` into the guest at `guestPath` over slirp, checked with cksum.

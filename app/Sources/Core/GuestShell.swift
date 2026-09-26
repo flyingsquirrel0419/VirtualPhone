@@ -149,6 +149,20 @@ public enum GuestCommand {
         "cat \(GuestShell.quote(path)) > /dev/tcp/\(hostAddress)/\(port) && cksum < \(GuestShell.quote(path))"
     }
 
+    /// The guest's zone is one symlink on the data volume (no remount needed).
+    /// Prints where the link points, or NOZONE when the guest lacks the zone.
+    public static func setTimeZone(_ identifier: String) -> String? {
+        // Zone names are ASCII paths like "Asia/Seoul"; anything else is refused.
+        guard !identifier.isEmpty, identifier.allSatisfy({ $0.isLetter || $0.isNumber || "/_-+".contains($0) }),
+              !identifier.contains("..") else { return nil }
+        let target = "/var/db/timezone/zoneinfo/\(identifier)"
+        let link = "/var/db/timezone/localtime"
+        return "if [ -e \(GuestShell.quote(target)) ]; then ln -sfn \(GuestShell.quote(target)) \(link) && readlink \(link); else echo NOZONE; fi"
+    }
+
+    /// Succeeds when the guest can reach slirp's host side.
+    public static let networkCheck = "ping -c 1 -t 3 \(hostAddress) > /dev/null 2>&1"
+
     public static func freeKilobytes(at path: String) -> String {
         "df -k \(GuestShell.quote(path)) | tail -1"
     }

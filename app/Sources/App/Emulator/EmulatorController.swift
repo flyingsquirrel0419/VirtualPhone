@@ -11,14 +11,19 @@ import SwiftUI
 final class EmulatorController: ObservableObject {
     @Published private(set) var state: RuntimeState = .idle
     @Published private(set) var frame: CGImage?
+    /// True once any frame arrived, whichever renderer shows it.
+    @Published private(set) var hasFrame = false
     @Published private(set) var frameSize: (width: Int, height: Int) = (0, 0)
     @Published private(set) var metrics = RuntimeMetrics()
     @Published private(set) var fps: Double = 0
+    @Published private(set) var hostCPU: Double = 0
     @Published var lastError: String?
 
     let package: VMPackage
     let runtime: EmulatorRuntime
     let console: GuestConsole
+    /// Non-nil when frames go to Metal instead of `frame`.
+    let metal: MetalFrameRenderer?
     private(set) var services: GuestServices!
     private lazy var battery = BatterySync(runtime: runtime)
     var isMock: Bool { runtime is MockEmulatorRuntime }
@@ -32,6 +37,8 @@ final class EmulatorController: ObservableObject {
         self.package = package
         self.runtime = runtime
         self.console = GuestConsole(logURL: EmulatorController.consoleLogURL(for: package))
+        self.metal = RendererKind.preferred == .metal ? MetalFrameRenderer() : nil
+        AppLogger.shared.log(.display, "Renderer: \(metal != nil ? "Metal" : "Core Graphics")")
         self.services = GuestServices(console: console, networkUp: { [weak self] in self?.metrics.netLinkUp ?? false })
         runtime.onStateChange = { [weak self] new in
             DispatchQueue.main.async { self?.stateChanged(new) }
@@ -111,12 +118,25 @@ final class EmulatorController: ObservableObject {
         pumpState.running = true
         let runtime = self.runtime
         let state = pumpState
+        let metal = self.metal
         let thread = Thread { [weak self] in
-            EmulatorController.pumpLoop(runtime: runtime, state: state) { image, width, height, fps in
+            EmulatorController.pumpLoop(runtime: runtime, state: state) { pixels, width, height, fps in
+                // On the pump thread: Metal takes the pixels as they are; the
+                // Core Graphics path copies them into an image SwiftUI owns.
+                var image: CGImage?
+                if let metal {
+                    metal.upload(pixels, width: width, height: height)
+                } else {
+                    image = EmulatorController.makeImage(pixels, width: width, height: height)
+                    if image == nil { return }
+                }
                 DispatchQueue.main.async {
                     guard let self else { return }
-                    if self.frame == nil { self.console.noteFirstFrame() }
-                    self.frame = image
+                    if !self.hasFrame {
+                        self.hasFrame = true
+                        self.console.noteFirstFrame()
+                    }
+                    if let image { self.frame = image }
                     if self.frameSize != (width, height) { self.frameSize = (width, height) }
                     self.fps = fps
                 }
@@ -131,13 +151,15 @@ final class EmulatorController: ObservableObject {
             guard let self else { return }
             self.metrics = self.runtime.metrics()
             if !self.isMock, Int(self.metrics.uptimeMS / 1000) % 5 == 0 { self.console.refreshQMPStatus() }
+            self.hostCPU = HostInfo.cpuPercent
+            if !self.isMock, self.state == .running { self.services.upkeep(networkEnabled: self.package.configuration.network) }
         }
     }
 
     /// Polls at display rate. A pass with nothing new costs one lock inside
-    /// the emulator; frames are copied once, into an image SwiftUI owns.
+    /// the emulator; `deliver` gets the whole current frame each time it changed.
     private static func pumpLoop(runtime: EmulatorRuntime, state: PumpState,
-                                 publish: @escaping (CGImage, Int, Int, Double) -> Void) {
+                                 deliver: @escaping (UnsafeMutableRawPointer, Int, Int, Double) -> Void) {
         var buffer: UnsafeMutableRawPointer?
         var capacity = 0
         var frames = 0
@@ -153,7 +175,7 @@ final class EmulatorController: ObservableObject {
                 buffer = UnsafeMutableRawPointer.allocate(byteCount: capacity, alignment: 16)
                 continue
             case .frame(let w, let h):
-                guard let buffer, let image = makeImage(buffer, width: w, height: h) else { break }
+                guard let buffer else { break }
                 frames += 1
                 let elapsed = Date().timeIntervalSince(windowStart)
                 if elapsed >= 1 {
@@ -161,7 +183,7 @@ final class EmulatorController: ObservableObject {
                     frames = 0
                     windowStart = Date()
                 }
-                publish(image, w, h, fps)
+                deliver(buffer, w, h, fps)
             case .none, .unavailable:
                 break
             }

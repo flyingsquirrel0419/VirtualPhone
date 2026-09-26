@@ -21,6 +21,31 @@ enum HostInfo {
         return rc == KERN_SUCCESS ? Int(info.phys_footprint / 1_048_576) : -1
     }
 
+    /// This process's CPU use, summed over its threads (100 = one core).
+    static var cpuPercent: Double {
+        var threads: thread_act_array_t?
+        var count: mach_msg_type_number_t = 0
+        guard task_threads(mach_task_self_, &threads, &count) == KERN_SUCCESS, let threads else { return -1 }
+        defer {
+            vm_deallocate(mach_task_self_, vm_address_t(UInt(bitPattern: threads)),
+                          vm_size_t(Int(count) * MemoryLayout<thread_t>.stride))
+        }
+        var total = 0.0
+        for i in 0..<Int(count) {
+            var info = thread_basic_info()
+            var n = mach_msg_type_number_t(THREAD_INFO_MAX)
+            let kr = withUnsafeMutablePointer(to: &info) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: Int(n)) {
+                    thread_info(threads[i], thread_flavor_t(THREAD_BASIC_INFO), $0, &n)
+                }
+            }
+            if kr == KERN_SUCCESS, info.flags & TH_FLAGS_IDLE == 0 {
+                total += Double(info.cpu_usage) / Double(TH_USAGE_SCALE) * 100
+            }
+        }
+        return total
+    }
+
     static var physicalMB: Int { Int(ProcessInfo.processInfo.physicalMemory / 1_048_576) }
 
     static func freeDiskMB() -> Int {

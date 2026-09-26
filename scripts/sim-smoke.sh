@@ -55,22 +55,42 @@ launch() {
 }
 alive() { kill -0 "$1" 2>/dev/null; }
 
+DATA=""
+# The app keeps this run's log and the previous one: collect each run's log
+# right after the next launch has rotated it into app.prev.log.
+previous_log() { cp "$DATA/Documents/Logs/app.prev.log" "$OUT/$1"; }
+
 echo "==> screen: auto demo on the mock runtime"
 pid="$(launch -VPAutoDemo YES)"
 sleep "$WAIT"
 alive "$pid" || fail "app exited during the screen run"
 xcrun simctl io "$UDID" screenshot "$OUT/machine-screen.png" > /dev/null
+DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)"
 
 echo "==> console: same device, console tab"
 pid="$(launch -VPAutoDemo YES -VPShowConsole YES)"
 sleep "$WAIT"
 alive "$pid" || fail "app exited during the console run"
 xcrun simctl io "$UDID" screenshot "$OUT/machine-console.png" > /dev/null
+previous_log app-screen-run.log
+
+echo "==> metal: auto demo drawn with the Metal renderer"
+pid="$(launch -VPAutoDemo YES -VPRenderer metal)"
+sleep "$WAIT"
+alive "$pid" || fail "app exited during the Metal run"
+xcrun simctl io "$UDID" screenshot "$OUT/machine-metal.png" > /dev/null
+previous_log app-console-run.log
+
+echo "==> self-test on the iOS runtime"
+pid="$(launch -VPSelfTest YES)"
+previous_log app-metal-run.log
+for _ in $(seq 1 30); do
+    grep -q "SELFTEST DONE" "$DATA/Documents/Logs/app.log" 2>/dev/null && break
+    sleep 1
+done
+cp "$DATA/Documents/Logs/app.log" "$OUT/app-selftest.log"
 xcrun simctl terminate "$UDID" "$BUNDLE" || true
 
-DATA="$(xcrun simctl get_app_container "$UDID" "$BUNDLE" data)"
-cp "$DATA/Documents/Logs/app.log" "$OUT/app-console-run.log"
-cp "$DATA/Documents/Logs/app.prev.log" "$OUT/app-screen-run.log" 2>/dev/null || true
 cp "$DATA/Documents/Devices/Demo iPhone.vphone/config.json" "$OUT/demo-config.json" \
     || fail "the demo device package was not created"
 cp "$DATA/Documents/Devices/Demo iPhone.vphone/logs/guest-console.log" "$OUT/" 2>/dev/null || true
@@ -83,6 +103,10 @@ check "$OUT/app-screen-run.log" "Mock machine running" "mock machine reached run
 check "$OUT/app-screen-run.log" "First frame after" "first frame reached the screen"
 check "$OUT/app-console-run.log" "Kernel after" "console tail detected the kernel phase"
 check "$OUT/app-console-run.log" "Shell ready after" "console tail detected the shell phase"
+check "$OUT/app-metal-run.log" "Renderer: Metal" "Metal renderer selected"
+check "$OUT/app-metal-run.log" "First frame after" "first frame drawn through Metal"
+grep "SELFTEST" "$OUT/app-selftest.log" | sed 's/^/    /'
+check "$OUT/app-selftest.log" "SELFTEST DONE passed=7 failed=0" "in-app self-test on the iOS runtime"
 grep -F "[ERROR]" "$OUT"/app-*.log && fail "errors in the app log"
 
 # A crash anywhere in the run leaves a report behind.

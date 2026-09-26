@@ -26,6 +26,11 @@ enum RuntimeState: Equatable {
 
 enum RuntimeButton: String, CaseIterable, Identifiable {
     case home, side, volumeUp, volumeDown
+    /// The ring/silent switch: each press toggles it.
+    case ringer
+
+    /// The ones on the bar under the screen; the ringer lives in the menu.
+    static let barButtons: [RuntimeButton] = [.home, .side, .volumeUp, .volumeDown]
 
     var id: String { rawValue }
 
@@ -35,6 +40,7 @@ enum RuntimeButton: String, CaseIterable, Identifiable {
         case .side: return "Side"
         case .volumeUp: return "Vol+"
         case .volumeDown: return "Vol−"
+        case .ringer: return "Ringer"
         }
     }
 
@@ -44,6 +50,7 @@ enum RuntimeButton: String, CaseIterable, Identifiable {
         case .side: return "power"
         case .volumeUp: return "speaker.plus"
         case .volumeDown: return "speaker.minus"
+        case .ringer: return "bell.slash"
         }
     }
 

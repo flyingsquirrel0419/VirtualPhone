@@ -112,6 +112,7 @@ final class InfernoRuntime: EmulatorRuntime {
         case .side: raw = VP_BUTTON_SIDE
         case .volumeUp: raw = VP_BUTTON_VOLUME_UP
         case .volumeDown: raw = VP_BUTTON_VOLUME_DOWN
+        case .ringer: raw = VP_BUTTON_RINGER
         }
         _ = vp_emulator_button_event(handle, raw, pressed)
     }

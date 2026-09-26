@@ -57,6 +57,11 @@ final class GuestShellTests: XCTestCase {
         XCTAssertFalse(steps.contains { $0.command.hasSuffix("| head") })
         XCTAssertEqual(GuestCommand.diagnose(["tar: write error: No space left on device"]), "The guest's disk is full.")
         XCTAssertNil(GuestCommand.diagnose(["fine"]))
+        XCTAssertEqual(GuestCommand.setTimeZone("Asia/Seoul"),
+                       "if [ -e '/var/db/timezone/zoneinfo/Asia/Seoul' ]; then ln -sfn '/var/db/timezone/zoneinfo/Asia/Seoul' /var/db/timezone/localtime && readlink /var/db/timezone/localtime; else echo NOZONE; fi")
+        XCTAssertNil(GuestCommand.setTimeZone("../../etc/passwd"))
+        XCTAssertNil(GuestCommand.setTimeZone("x; rm -rf /"))
+        XCTAssertEqual(GuestCommand.networkCheck, "ping -c 1 -t 3 10.0.2.2 > /dev/null 2>&1")
     }
 }
 
