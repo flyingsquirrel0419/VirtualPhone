@@ -30,3 +30,9 @@ tester can install on a phone.
   the user's image, the safer failure. Existing devices are not switched silently.
 - 0.2.0 is published as `v0.2.0-alpha.1` (prerelease): its milestone criterion — a kernel log on a
   phone — has not been observed.
+
+## Result
+
+`v0.2.0-alpha.1` released by run 36230238478 (clean macOS build, release gate):
+`VirtualPhone-v0.2.0-alpha.1.ipa` (4.6 MB, channel alpha, commit 4773b8c), `SHA256SUMS`,
+`SBOM.spdx.json`, re-verified after download.
