@@ -58,6 +58,11 @@ again on Linux after download (`sha256sum -c`, `verify_ipa.py --require-emulator
 --require-signature`, `forbidden_scan.py archive`, all 18 bridge symbols exported).
 Environment: `macos-26-arm64` 20260907, Xcode 26.6, iOS SDK 26.5, Swift 6.3.3.
 
+Release pipeline exercised with the prerelease tag `v0.1.0-alpha.1` (run 36224493841): tag/VERSION/
+CHANGELOG check, Linux gate, macOS build with **no caches** (dependencies and emulator from
+scratch), release gate, GitHub prerelease with `VirtualPhone-v0.1.0-alpha.1.ipa`, `SHA256SUMS`,
+`SBOM.spdx.json` — re-verified after download.
+
 ## Remaining issues
 
 - Guest boot untested (v0.2). The argv follows Inferno-iOS; our own boot verification is next.
