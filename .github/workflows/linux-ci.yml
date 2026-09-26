@@ -78,6 +78,8 @@ jobs:
     container: swift:6.1.2-noble
     steps:
       - uses: actions/checkout@v7
+      - name: qemu-img for the overlay tests
+        run: apt-get update -qq && apt-get install -y -qq qemu-utils > /dev/null
       - run: swift test
 
   emulator-patches:

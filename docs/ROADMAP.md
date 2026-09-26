@@ -62,7 +62,14 @@ Goal: kernel boot output captured.
 
 ## v0.8 — VM manager
 
-- qcow2 overlays per device (never write the user's base image), snapshot metadata, restore UI
+- [x] Create, clone, rename, delete, settings, export configuration (v0.1)
+- [x] qcow2 v3 overlay per device (written by VirtualPhone, checked with `qemu-img check`/`qemu-io`
+      on Linux: writes land in the overlay, the base image stays byte-identical)
+- [x] Per-device copies of the guest's mutable state, created and reset together with the overlay
+      (disk and SEP replay counters never diverge); relative backing path survives container moves
+- [x] Config schema 2 with migration (existing devices keep booting the shared image)
+- [ ] Snapshots (metadata, restore UI) — after overlays are proven on a device
+- [ ] Device test: boot from an overlay, reset, clone (NOT RUN)
 
 ## v0.9 — Performance and stability
 

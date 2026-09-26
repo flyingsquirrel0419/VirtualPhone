@@ -71,6 +71,13 @@ final class AppModel: ObservableObject {
         attempt("Delete") { try package.delete() }
     }
 
+    func resetState(_ package: VMPackage) {
+        attempt("Reset") {
+            try DeviceState.reset(package)
+            AppLogger.shared.log(.storage, "\(package.configuration.name): device state reset to the base image")
+        }
+    }
+
     func save(_ package: VMPackage) {
         attempt("Save") { try package.save() }
     }
@@ -100,6 +107,17 @@ final class AppModel: ObservableObject {
         if !resolved.missing.isEmpty {
             problems.append("Missing guest files: " + resolved.missing.map(\.rawValue).joined(separator: ", "))
         }
+        var files = resolved.files
+        if problems.isEmpty, package.configuration.protectBaseImage {
+            do {
+                if try DeviceState.prepare(package, files: resolved.files) {
+                    AppLogger.shared.log(.storage, "\(package.configuration.name): created its overlay and state copies")
+                }
+                files = DeviceState.resolve(resolved.files, for: package)
+            } catch {
+                problems.append("Could not prepare this device's own disk overlay: \(error.localizedDescription)")
+            }
+        }
         let splitWX: Bool
         if case .enabled(let method, _) = jit { splitWX = method.needsSplitWX } else { splitWX = true }
         let options = EmulatorArguments.Options(
@@ -107,7 +125,7 @@ final class AppModel: ObservableObject {
             qemuDataDirectory: (Bundle.main.resourcePath ?? Bundle.main.bundlePath) + "/qemu-data",
             consoleLogPath: EmulatorController.consoleLogURL(for: package).path)
         do {
-            let argv = try EmulatorArguments.build(config: package.configuration, files: resolved.files,
+            let argv = try EmulatorArguments.build(config: package.configuration, files: files,
                                                    missing: resolved.missing, options: options)
             if problems.isEmpty { return .ready(arguments: argv) }
         } catch EmulatorArguments.BuildError.invalidConfiguration(let errors) {

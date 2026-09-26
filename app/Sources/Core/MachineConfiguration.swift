@@ -6,7 +6,7 @@ import Foundation
 /// memory; loading a newer one is refused rather than guessed at, so an older
 /// build never silently drops settings a newer one wrote.
 public struct MachineConfiguration: Codable, Equatable, Sendable {
-    public static let currentSchema = 1
+    public static let currentSchema = 2
 
     public static let coreRange = 1...6          // T8030: 2 performance + 4 efficiency
     public static let memoryRangeMB = 1024...3072
@@ -28,6 +28,10 @@ public struct MachineConfiguration: Codable, Equatable, Sendable {
     public var network: Bool
     /// Kernel command line; nil means the built-in default.
     public var bootArgs: String?
+    /// Boot from a per-device qcow2 overlay and per-device copies of the
+    /// guest's mutable state, so the prepared image is never written.
+    /// Schema 2; devices migrated from schema 1 keep booting as before (off).
+    public var protectBaseImage: Bool
 
     public init(
         id: UUID = UUID(),
@@ -38,7 +42,8 @@ public struct MachineConfiguration: Codable, Equatable, Sendable {
         displayPreset: DisplayPreset = .iphone11,
         audio: Bool = false,
         network: Bool = true,
-        bootArgs: String? = nil
+        bootArgs: String? = nil,
+        protectBaseImage: Bool = true
     ) {
         self.schema = Self.currentSchema
         self.id = id
@@ -52,6 +57,7 @@ public struct MachineConfiguration: Codable, Equatable, Sendable {
         self.audio = audio
         self.network = network
         self.bootArgs = bootArgs
+        self.protectBaseImage = protectBaseImage
     }
 
     public static let defaultBootArgs =
@@ -154,6 +160,10 @@ public struct MachineConfiguration: Codable, Equatable, Sendable {
             dict["displayPreset"] = dict["displayPreset"] ?? defaults.displayPreset.rawValue
             dict["audio"] = dict["audio"] ?? defaults.audio
             dict["network"] = dict["network"] ?? defaults.network
+        }
+        if schema < 2 {
+            // Existing devices booted the shared image directly; keep that.
+            dict["protectBaseImage"] = dict["protectBaseImage"] ?? false
         }
         dict["schema"] = currentSchema
         return dict

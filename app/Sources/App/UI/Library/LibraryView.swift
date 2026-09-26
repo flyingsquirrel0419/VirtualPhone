@@ -104,6 +104,11 @@ struct LibraryView: View {
         Button { editing = package } label: { Label("Settings", systemImage: "slider.horizontal.3") }
         Button { renameText = package.configuration.name; renaming = package } label: { Label("Rename", systemImage: "pencil") }
         Button { model.clone(package) } label: { Label("Clone", systemImage: "plus.square.on.square") }
+        if DeviceState.exists(in: package) {
+            Button(role: .destructive) { model.resetState(package) } label: {
+                Label("Reset Device State", systemImage: "arrow.uturn.backward")
+            }
+        }
         ShareLink(item: package.url.appendingPathComponent("config.json")) {
             Label("Export configuration", systemImage: "square.and.arrow.up")
         }

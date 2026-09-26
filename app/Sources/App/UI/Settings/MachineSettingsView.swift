@@ -32,6 +32,16 @@ struct MachineSettingsView: View {
                     }
                 }
                 Section {
+                    Toggle("Protect the base image", isOn: config.protectBaseImage)
+                    if DeviceState.exists(in: package) {
+                        Button("Reset device state", role: .destructive) { model.resetState(package) }
+                    }
+                } header: {
+                    Text("Storage")
+                } footer: {
+                    Text("On: the guest writes to this device's own overlay and state copies; the prepared image is never changed, and Reset returns the device to it. Off: the guest writes to the shared files directly.")
+                }
+                Section {
                     Toggle("Network", isOn: config.network)
                     Toggle("Enable Audio (experimental)", isOn: config.audio)
                 } footer: {

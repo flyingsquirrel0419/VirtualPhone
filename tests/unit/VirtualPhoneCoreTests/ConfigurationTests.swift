@@ -44,8 +44,9 @@ final class ConfigurationTests: XCTestCase {
     func testMigrationFromSchema0() throws {
         let legacy = #"{"name":"Old","cpuCores":2,"memoryMB":2048,"tbSizeMB":64}"#
         let c = try MachineConfiguration.decode(Data(legacy.utf8))
-        XCTAssertEqual(c.schema, 1)
+        XCTAssertEqual(c.schema, MachineConfiguration.currentSchema)
         XCTAssertEqual(c.name, "Old")
+        XCTAssertFalse(c.protectBaseImage)
         XCTAssertEqual(c.translatorCacheMB, 64)
         XCTAssertEqual(c.displayPreset, .iphone11)
         XCTAssertFalse(c.audio)
