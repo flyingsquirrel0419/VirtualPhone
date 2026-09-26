@@ -25,6 +25,9 @@ if [ -n "${CI:-}" ] && [ "$have" != "$XCODE_WANT" ] && [ "${ALLOW_XCODE_MISMATCH
 fi
 xcrun --sdk iphoneos --show-sdk-version
 
+# Jobs that only compile the app (simulator smoke test) need no build tools.
+if [ "${SKIP_BREW:-0}" = 1 ]; then exit 0; fi
+
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
 brew install --quiet meson ninja pkg-config cmake autoconf automake libtool m4 qemu
 if [ -n "${GITHUB_PATH:-}" ]; then echo "$(brew --prefix m4)/bin" >> "$GITHUB_PATH"; fi

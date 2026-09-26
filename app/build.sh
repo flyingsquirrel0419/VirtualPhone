@@ -4,6 +4,7 @@
 #   app/build.sh                              uses build/emulator/libqemu-aarch64-softmmu.dylib
 #   EMULATOR_DYLIB=/path/lib.dylib app/build.sh
 #   REQUIRE_EMULATOR=0 app/build.sh           UI-only build (mock runtime), for quick checks
+#   PLATFORM=simulator app/build.sh           iOS Simulator .app (mock runtime only), for smoke tests
 #
 # Environment: PRODUCT_NAME (VirtualPhone), BUNDLE_ID (dev.virtualphone.app),
 # CHANNEL (dev|nightly|alpha|beta|stable), BUILD_NUMBER, OUT_DIR (dist).
@@ -26,17 +27,24 @@ REQUIRE_EMULATOR="${REQUIRE_EMULATOR:-1}"
 EMULATOR_DYLIB="${EMULATOR_DYLIB:-$ROOT/build/emulator/libqemu-aarch64-softmmu.dylib}"
 KEYMAPS="${QEMU_KEYMAPS:-}"
 DEPLOY="16.0"
-TARGET="arm64-apple-ios$DEPLOY"
+PLATFORM="${PLATFORM:-device}"
+case "$PLATFORM" in
+    device)    SDK_NAME=iphoneos;        TARGET="arm64-apple-ios$DEPLOY";           PLATFORM_NAME=iPhoneOS ;;
+    simulator) SDK_NAME=iphonesimulator; TARGET="arm64-apple-ios$DEPLOY-simulator"; PLATFORM_NAME=iPhoneSimulator
+               # The emulator library is built for devices only; the simulator runs the mock.
+               REQUIRE_EMULATOR=0; EMULATOR_DYLIB="" ;;
+    *) echo "PLATFORM must be device or simulator" >&2; exit 2 ;;
+esac
 
-BUILD="$ROOT/build/app"
+BUILD="$ROOT/build/app-$PLATFORM"
 APP="$BUILD/Payload/$EXECUTABLE.app"
-SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+SDK="$(xcrun --sdk "$SDK_NAME" --show-sdk-path)"
 
 echo "==> $PRODUCT_NAME $VERSION ($BUILD_NUMBER) ${COMMIT:0:12} [$CHANNEL]"
 echo "    SDK $SDK"
-xcrun --sdk iphoneos swiftc --version | sed -n 1p
+xcrun --sdk "$SDK_NAME" swiftc --version | sed -n 1p
 
-if [ ! -f "$EMULATOR_DYLIB" ]; then
+if [ -z "$EMULATOR_DYLIB" ] || [ ! -f "$EMULATOR_DYLIB" ]; then
     if [ "$REQUIRE_EMULATOR" = 1 ]; then
         echo "emulator library not found: $EMULATOR_DYLIB (REQUIRE_EMULATOR=0 for a UI-only build)" >&2
         exit 1
@@ -49,13 +57,13 @@ rm -rf "$BUILD"
 mkdir -p "$APP/Frameworks" "$BUILD/obj" "$OUT_DIR"
 
 echo "==> Runtime bridge (C)"
-xcrun --sdk iphoneos clang -target "$TARGET" -isysroot "$SDK" -std=c11 -O2 -Wall -Wextra -Werror \
+xcrun --sdk "$SDK_NAME" clang -target "$TARGET" -isysroot "$SDK" -std=c11 -O2 -Wall -Wextra -Werror \
     -Wno-unused-parameter -c "$APPSRC/Runtime/vp_runtime.c" -o "$BUILD/obj/vp_runtime.o"
 
 echo "==> Swift"
 SOURCES=()
 while IFS= read -r -d '' f; do SOURCES+=("$f"); done < <(find "$APPSRC/Sources/Core" "$APPSRC/Sources/App" -name '*.swift' -print0 | sort -z)
-xcrun --sdk iphoneos swiftc \
+xcrun --sdk "$SDK_NAME" swiftc \
     -target "$TARGET" -sdk "$SDK" \
     -swift-version 5 -O -wmo -parse-as-library \
     -module-name "$EXECUTABLE" \
@@ -72,13 +80,14 @@ sed -e "s|__PRODUCT_NAME__|$PRODUCT_NAME|g" \
     -e "s|__GIT_COMMIT__|$COMMIT|g" \
     -e "s|__CHANNEL__|$CHANNEL|g" \
     "$APPSRC/Resources/Info.plist" > "$APP/Info.plist"
+plutil -replace CFBundleSupportedPlatforms -json "[\"$PLATFORM_NAME\"]" "$APP/Info.plist"
 plutil -lint "$APP/Info.plist"
 printf 'APPL????' > "$APP/PkgInfo"
 
 echo "==> Icon"
 # actool compiles the catalog into Assets.car and returns the Info.plist keys
 # the icon needs in a partial plist, merged here rather than transcribed.
-if xcrun actool --compile "$APP" --platform iphoneos --minimum-deployment-target "$DEPLOY" \
+if xcrun actool --compile "$APP" --platform "$SDK_NAME" --minimum-deployment-target "$DEPLOY" \
         --app-icon AppIcon --output-partial-info-plist "$BUILD/icon.plist" \
         "$APPSRC/Resources/Assets.xcassets" > "$BUILD/actool.log" 2>&1; then
     python3 - "$APP/Info.plist" "$BUILD/icon.plist" <<'PY'
@@ -119,6 +128,11 @@ fi
 codesign --force --sign - --timestamp=none --entitlements "$APPSRC/Entitlements.plist" "$APP"
 codesign --verify --deep --strict "$APP"
 codesign -d --entitlements - "$APP" >/dev/null
+
+if [ "$PLATFORM" = simulator ]; then
+    echo "$APP"
+    exit 0
+fi
 
 echo "==> Package"
 IPA="$OUT_DIR/$PRODUCT_NAME-$VERSION.ipa"

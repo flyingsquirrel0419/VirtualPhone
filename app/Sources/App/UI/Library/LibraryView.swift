@@ -49,6 +49,7 @@ struct LibraryView: View {
             }
             .refreshable { model.reload(); model.refreshJIT() }
         }
+        .onAppear(perform: autoDemoIfAsked)
         .sheet(isPresented: $creating) { CreateDeviceView().environmentObject(model) }
         .sheet(item: $editing) { package in MachineSettingsView(package: package).environmentObject(model) }
         .sheet(isPresented: $showDiagnostics) { DiagnosticsView().environmentObject(model) }
@@ -113,6 +114,20 @@ struct LibraryView: View {
             Label("Export configuration", systemImage: "square.and.arrow.up")
         }
         Button(role: .destructive) { deleting = package } label: { Label("Delete", systemImage: "trash") }
+    }
+
+    /// `-VPAutoDemo YES` (a launch argument, read through UserDefaults) makes
+    /// a demo device and boots it on the mock runtime at once: how the
+    /// simulator smoke test (scripts/sim-smoke.sh) exercises the app unattended.
+    private func autoDemoIfAsked() {
+        guard UserDefaults.standard.bool(forKey: "VPAutoDemo"), running == nil else { return }
+        let name = "Demo iPhone"
+        if !model.packages.contains(where: { $0.configuration.name == name }) {
+            model.create(name: name, preset: .iphone11)
+        }
+        guard let package = model.packages.first(where: { $0.configuration.name == name }) else { return }
+        AppLogger.shared.log(.app, "Auto demo: starting \(name) on the mock runtime")
+        launch(package, mock: true)
     }
 
     private func start(_ package: VMPackage) {

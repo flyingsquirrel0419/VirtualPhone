@@ -8,7 +8,7 @@ struct MachineView: View {
     @State private var fullscreen = false
     @State private var overlay = false
     @State private var confirmStop = false
-    @State private var showConsole = false
+    @State private var showConsole = UserDefaults.standard.bool(forKey: "VPShowConsole")
     @State private var showImporter = false
     /// Kept apart from `showImporter`: the importer clears that before its completion runs.
     @State private var importKind = ImportKind.file

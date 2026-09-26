@@ -169,3 +169,27 @@ jobs:
             out/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
+
+  simulator:
+    name: Simulator smoke test (mock runtime)
+    needs: linux
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Pinned Xcode
+        env:
+          SKIP_BREW: "1"
+        run: scripts/bootstrap-macos.sh
+      - name: Launch in the simulator
+        run: scripts/sim-smoke.sh
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: simulator-smoke-${{ github.sha }}
+          path: build/sim-smoke
+          if-no-files-found: warn
+          retention-days: 14
+
