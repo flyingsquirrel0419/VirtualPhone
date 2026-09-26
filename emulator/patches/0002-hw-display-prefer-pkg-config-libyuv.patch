@@ -1,0 +1,35 @@
+From 60116a572a455659f76e024b35fa216032a5dfc3 Mon Sep 17 00:00:00 2001
+From: VirtualPhone <noreply@virtualphone.invalid>
+Date: Sat, 26 Sep 2026 16:26:10 +0900
+Subject: [PATCH] hw/display: prefer a pkg-config libyuv over the subproject
+
+Lets a host (Linux) build of the library link a PIC libyuv; meson cannot
+see that the CMake subproject's static archive is position-independent.
+Cross builds without a libyuv.pc behave exactly as before.
+---
+ hw/display/meson.build | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/hw/display/meson.build b/hw/display/meson.build
+index 629efad..8a1f323 100644
+--- a/hw/display/meson.build
++++ b/hw/display/meson.build
+@@ -1,7 +1,13 @@
+ hw_display_modules = {}
+ 
+-libyuv = subproject('libyuv')
+-libyuv_dep = libyuv.get_variable('yuv_dep')
++# A libyuv the build machine provides (pkg-config) wins; otherwise the pinned
++# CMake subproject. A host build of the library needs the former: meson cannot
++# tell that the subproject's static archive is PIC.
++libyuv_dep = dependency('libyuv', required: false, allow_fallback: false)
++if not libyuv_dep.found()
++  libyuv = subproject('libyuv')
++  libyuv_dep = libyuv.get_variable('yuv_dep')
++endif
+ system_ss.add(when: 'CONFIG_APPLE_SOC', if_true: [libyuv_dep, files('apple_displaypipe_v4.c', 'apple_displaypipe_v2.c', 'synopsys_mipi_dsim.c', 'apple_scaler.c')])
+ system_ss.add(when: 'CONFIG_DDC', if_true: files('i2c-ddc.c'))
+ system_ss.add(when: 'CONFIG_EDID', if_true: files('edid-generate.c', 'edid-region.c'))
+-- 
+2.43.0
+

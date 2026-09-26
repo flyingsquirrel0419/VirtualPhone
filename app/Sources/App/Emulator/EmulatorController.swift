@@ -18,6 +18,7 @@ final class EmulatorController: ObservableObject {
 
     let package: VMPackage
     let runtime: EmulatorRuntime
+    let console: GuestConsole
     var isMock: Bool { runtime is MockEmulatorRuntime }
 
     private var pump: Thread?
@@ -28,6 +29,7 @@ final class EmulatorController: ObservableObject {
     init(package: VMPackage, runtime: EmulatorRuntime) {
         self.package = package
         self.runtime = runtime
+        self.console = GuestConsole(logURL: EmulatorController.consoleLogURL(for: package))
         runtime.onStateChange = { [weak self] new in
             DispatchQueue.main.async { self?.stateChanged(new) }
         }
@@ -38,9 +40,15 @@ final class EmulatorController: ObservableObject {
         metricsTimer?.invalidate()
     }
 
+    /// Where `-chardev …,logfile=` writes; EmulatorArguments gets the same path.
+    static func consoleLogURL(for package: VMPackage) -> URL {
+        package.logsURL.appendingPathComponent("guest-console.log")
+    }
+
     // MARK: - Lifecycle
 
     func start(arguments: [String]) {
+        console.begin()
         do {
             try runtime.start(arguments: arguments)
         } catch {
@@ -69,6 +77,7 @@ final class EmulatorController: ObservableObject {
         case .running where pump == nil:
             startPump()
         case .stopped, .failed:
+            console.end()
             pumpState.running = false
             pump = nil
             metricsTimer?.invalidate()
@@ -99,6 +108,7 @@ final class EmulatorController: ObservableObject {
             EmulatorController.pumpLoop(runtime: runtime, state: state) { image, width, height, fps in
                 DispatchQueue.main.async {
                     guard let self else { return }
+                    if self.frame == nil { self.console.noteFirstFrame() }
                     self.frame = image
                     if self.frameSize != (width, height) { self.frameSize = (width, height) }
                     self.fps = fps
@@ -113,6 +123,7 @@ final class EmulatorController: ObservableObject {
         metricsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.metrics = self.runtime.metrics()
+            if !self.isMock, Int(self.metrics.uptimeMS / 1000) % 5 == 0 { self.console.refreshQMPStatus() }
         }
     }
 

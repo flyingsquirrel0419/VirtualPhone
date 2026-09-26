@@ -5,3 +5,4 @@
 # (app/Runtime) over patching QEMU.
 #
 0001-subprojects-pin-libyuv-and-mlib-wraps.patch   # reproducibility: wraps tracked main/master
+0002-hw-display-prefer-pkg-config-libyuv.patch     # host builds: link a PIC libyuv from pkg-config

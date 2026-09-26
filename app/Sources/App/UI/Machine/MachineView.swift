@@ -7,11 +7,24 @@ struct MachineView: View {
     @State private var fullscreen = false
     @State private var overlay = false
     @State private var confirmStop = false
+    @State private var showConsole = false
 
     var body: some View {
         VStack(spacing: 0) {
             if !fullscreen { topBar }
-            screen
+            if !fullscreen {
+                Picker("View", selection: $showConsole) {
+                    Text("Screen").tag(false)
+                    Text("Console").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal)
+            }
+            if showConsole && !fullscreen {
+                ConsoleView(console: controller.console)
+            } else {
+                screen
+            }
             if !fullscreen { buttonBar }
         }
         .background(Color.black.ignoresSafeArea())
@@ -39,6 +52,7 @@ struct MachineView: View {
             }
             Spacer()
             if controller.isMock { StatusBadge(text: "Mock", color: .purple) }
+            PhaseBadge(console: controller.console)
             StatusBadge(text: controller.state.label, color: controller.state.color)
             Menu {
                 Button { controller.togglePause() } label: {
@@ -140,6 +154,12 @@ struct MachineView: View {
 
 struct DebugOverlay: View {
     @ObservedObject var controller: EmulatorController
+    @ObservedObject var console: GuestConsole
+
+    init(controller: EmulatorController) {
+        _controller = ObservedObject(wrappedValue: controller)
+        _console = ObservedObject(wrappedValue: controller.console)
+    }
 
     var body: some View {
         let m = controller.metrics
@@ -150,7 +170,13 @@ struct DebugOverlay: View {
             Text("uptime \(m.uptimeMS / 1000)s · touches \(m.touchesSent) · buttons \(m.buttonsSent)")
             Text("tb \(controller.package.configuration.translatorCacheMB) MB · guest RAM \(controller.package.configuration.memoryMB) MB")
             Text("host RAM \(HostInfo.residentMB) MB · network \(m.netLinkUp ? "up" : "down")")
-            Text("runtime \(controller.runtime.name)")
+            Text("runtime \(controller.runtime.name) · qmp \(console.qmpStatus ?? "—")")
+            ForEach(console.transitions, id: \.phase) { t in
+                Text(String(format: "%@ at %.1fs", t.phase.label, t.elapsed))
+            }
+            if let first = console.firstFrameAfter {
+                Text(String(format: "first frame at %.1fs", first))
+            }
         }
         .font(.system(size: 10, design: .monospaced))
         .foregroundStyle(.green)
@@ -158,5 +184,17 @@ struct DebugOverlay: View {
         .background(.black.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
         .padding(8)
         .allowsHitTesting(false)
+    }
+}
+
+/// The boot phase, from the console; watched separately so the top bar
+/// redraws when the console changes.
+struct PhaseBadge: View {
+    @ObservedObject var console: GuestConsole
+
+    var body: some View {
+        if console.phase > .poweredOn {
+            StatusBadge(text: console.phase.label, color: console.phase.color)
+        }
     }
 }

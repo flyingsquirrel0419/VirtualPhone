@@ -1,0 +1,65 @@
+name: Emulator host test
+
+# Level C with the real emulator: builds the pinned Inferno as a Linux shared
+# library and drives it through the runtime bridge (QEMU's `none` machine, no
+# guest files), cross-checking every state change over QMP. Kept out of Linux
+# CI so that stays under ten minutes.
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - "app/Runtime/**"
+      - "emulator/**"
+      - "tests/emulator/**"
+      - "deps.lock"
+      - ".github/workflows/emulator-host.yml"
+  pull_request:
+    paths:
+      - "app/Runtime/**"
+      - "emulator/**"
+      - "tests/emulator/**"
+      - "deps.lock"
+  schedule:
+    - cron: "29 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: emulator-host-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-library:
+    name: Bridge against real Inferno (Linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq clang ninja-build cmake pkg-config m4 libglib2.0-dev libpixman-1-dev \
+            libslirp-dev libgmp-dev libtasn1-6-dev libpng-dev liblz4-dev liblzfse-dev
+          python3 -m pip install --user --quiet "meson==1.9.1"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Fetch pinned emulator
+        run: emulator/scripts/fetch.sh
+      - name: Restore host build
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: build/emulator-host
+          key: emu-host-ubuntu2404-${{ hashFiles('deps.lock', 'emulator/patches/**', 'emulator/scripts/build-host.sh') }}
+      - name: Build emulator library (host)
+        run: emulator/scripts/build-host.sh
+      - name: Save host build
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: build/emulator-host
+          key: emu-host-ubuntu2404-${{ hashFiles('deps.lock', 'emulator/patches/**', 'emulator/scripts/build-host.sh') }}
+      - name: Runtime bridge against the real library
+        run: tests/emulator/run-real.sh

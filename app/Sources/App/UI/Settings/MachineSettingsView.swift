@@ -61,6 +61,22 @@ struct MachineSettingsView: View {
                 }
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
+                Section("Guest file status") {
+                    ForEach(GuestFiles.report(package.links, documents: AppModel.documents), id: \.role) { entry in
+                        HStack {
+                            Image(systemName: entry.usable ? "checkmark.circle.fill" : "xmark.circle")
+                                .foregroundStyle(entry.usable ? .green : .red)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(entry.role.rawValue).font(.callout)
+                                Text(entry.path.replacingOccurrences(of: AppModel.documents.path + "/", with: ""))
+                                    .font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            }
+                            Spacer()
+                            Text(entry.size.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "missing")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 let issues = package.configuration.validate()
                 if !issues.isEmpty {
                     Section("Problems") {

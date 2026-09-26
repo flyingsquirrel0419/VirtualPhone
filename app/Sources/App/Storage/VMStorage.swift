@@ -105,7 +105,7 @@ final class AppModel: ObservableObject {
         let options = EmulatorArguments.Options(
             splitWX: splitWX,
             qemuDataDirectory: (Bundle.main.resourcePath ?? Bundle.main.bundlePath) + "/qemu-data",
-            consoleLogPath: package.logsURL.appendingPathComponent("guest-console.log").path)
+            consoleLogPath: EmulatorController.consoleLogURL(for: package).path)
         do {
             let argv = try EmulatorArguments.build(config: package.configuration, files: resolved.files,
                                                    missing: resolved.missing, options: options)

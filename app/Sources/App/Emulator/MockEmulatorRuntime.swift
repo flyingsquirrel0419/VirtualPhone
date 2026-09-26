@@ -19,9 +19,29 @@ final class MockEmulatorRuntime: EmulatorRuntime {
     private var buttons: UInt64 = 0
     private var lastFrameAt = Date.distantPast
 
-    init(preset: DisplayPreset) {
+    /// Written like the real chardev logfile, so the console, the boot phases
+    /// and their timings can be exercised without a guest.
+    private let consoleLog: URL?
+
+    init(preset: DisplayPreset, consoleLog: URL? = nil) {
         width = preset.width
         height = preset.height
+        self.consoleLog = consoleLog
+    }
+
+    static let fakeBoot: [(TimeInterval, String)] = [
+        (0.3, "::\tiBoot for n104ap (VirtualPhone mock runtime)"),
+        (1.0, "Darwin Kernel Version (mock): no guest is running"),
+        (1.6, "BSD root: disk0s1 (mock)"),
+        (2.2, "launchd[1]: mock userspace"),
+        (3.0, "bash-5.0# "),
+    ]
+
+    private func writeConsole(_ line: String) {
+        guard let url = consoleLog, let handle = try? FileHandle(forWritingTo: url) else { return }
+        defer { try? handle.close() }
+        _ = try? handle.seekToEnd()
+        handle.write(Data((line + "\r\n").utf8))
     }
 
     var state: RuntimeState {
@@ -42,6 +62,12 @@ final class MockEmulatorRuntime: EmulatorRuntime {
     func start(arguments: [String]) throws {
         guard state == .idle else { throw RuntimeError.refused("mock machine already started") }
         set(.starting)
+        for (delay, line) in Self.fakeBoot {
+            DispatchQueue.global().asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self, self.state == .starting || self.state.isLive else { return }
+                self.writeConsole(line)
+            }
+        }
         DispatchQueue.global().asyncAfter(deadline: .now() + 1.2) { [weak self] in
             guard let self, self.state == .starting else { return }
             AppLogger.shared.log(.boot, "Mock kernel: Darwin Kernel Version (mock)")

@@ -122,7 +122,8 @@ struct LibraryView: View {
         do {
             let runtime: EmulatorRuntime
             if mock {
-                runtime = MockEmulatorRuntime(preset: package.configuration.displayPreset)
+                runtime = MockEmulatorRuntime(preset: package.configuration.displayPreset,
+                                              consoleLog: EmulatorController.consoleLogURL(for: package))
             } else {
                 runtime = try InfernoRuntime()
             }
