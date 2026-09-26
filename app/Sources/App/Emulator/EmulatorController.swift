@@ -19,6 +19,7 @@ final class EmulatorController: ObservableObject {
     let package: VMPackage
     let runtime: EmulatorRuntime
     let console: GuestConsole
+    private(set) var services: GuestServices!
     var isMock: Bool { runtime is MockEmulatorRuntime }
 
     private var pump: Thread?
@@ -30,6 +31,7 @@ final class EmulatorController: ObservableObject {
         self.package = package
         self.runtime = runtime
         self.console = GuestConsole(logURL: EmulatorController.consoleLogURL(for: package))
+        self.services = GuestServices(console: console, networkUp: { [weak self] in self?.metrics.netLinkUp ?? false })
         runtime.onStateChange = { [weak self] new in
             DispatchQueue.main.async { self?.stateChanged(new) }
         }

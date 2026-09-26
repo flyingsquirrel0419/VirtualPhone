@@ -25,6 +25,8 @@ final class GuestConsole: ObservableObject {
     private var timer: DispatchSourceTimer?
     private var input: TCPConnection?
     private var startedAt: Date?
+    /// Called on the console queue for every completed line.
+    private var observers: [UUID: (String) -> Void] = [:]
 
     init(logURL: URL, serialPort: UInt16 = 4555, qmpPort: UInt16 = 4556) {
         self.logURL = logURL
@@ -63,8 +65,20 @@ final class GuestConsole: ObservableObject {
         }
     }
 
+    /// Every completed console line from now on, on a private queue.
+    func observeLines(_ handler: @escaping (String) -> Void) -> UUID {
+        let id = UUID()
+        queue.async { self.observers[id] = handler }
+        return id
+    }
+
+    func removeObserver(_ id: UUID) {
+        queue.async { self.observers[id] = nil }
+    }
+
     private func tick() {
         let update = tailer.poll()
+        for line in update.lines { observers.values.forEach { $0(line) } }
         for t in update.transitions {
             AppLogger.shared.log(.boot, String(format: "%@ after %.1f s: %@", t.phase.label, t.elapsed, String(t.line.prefix(120))),
                                  level: t.phase == .panicked ? .error : .info)

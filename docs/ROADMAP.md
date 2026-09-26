@@ -19,38 +19,46 @@ results that need a phone are recorded as NOT RUN until someone runs them.
 ## v0.2 — T8030 boot pipeline
 
 Goal: kernel boot output captured.
-- Serial console reader (TCP chardev → log view, `guest-console.log` tail in the app)
-- QMP client for state queries (`query-status`), clean quit so disks are flushed
-- Boot phases in the UI: iBoot → XNU → launchd, from console markers
-- Guest file readiness screen with per-file status and sizes
-- Device test: kernel log reaches `launchd` on a phone
+- [x] Serial console: chardev logfile tailer, console tab, input over the serial socket
+- [x] QMP client (`query-status`), status in the debug overlay
+- [x] Boot phases iBoot → kernel → launchd → shell (+ panic, warnings, timings) from console markers
+- [x] Guest file readiness with per-file status and sizes
+- [x] Bridge driven against the real Inferno library on Linux, state checked over QMP
+- [x] Every option/property/device of the command line checked against the pinned tree
+- [ ] Device test: kernel log reaches `launchd` on a phone (NOT RUN — needs the user's guest image)
 
 ## v0.3 — SpringBoard
 
-- First frame timing, boot-time metrics (time to Apple logo, to SpringBoard)
-- Framebuffer → Metal layer path (replace per-frame CGImage) once measured
-- Device test: SpringBoard visible on a phone
+- [x] First-frame time recorded (overlay, BOOT log)
+- [ ] Framebuffer → Metal layer path, once a device measurement shows the CGImage path limits FPS
+- [ ] Device test: SpringBoard visible on a phone (NOT RUN)
 
 ## v0.4 — Touch and buttons
 
-- Multi-touch investigation (the embed API is single-touch today)
-- Side-button long press, ringer toggle, rotation API stub
-- Device test: tap, long press, drag, swipe, all four buttons
+- [x] Investigation: the emulated panel (`hw/input/mt-spi.c`) takes one contact — multi-touch needs
+      an emulator patch reporting several paths (not started)
+- [x] Tap/long-press/drag/swipe via one contact, letterbox mapping, all four buttons with hold times
+- [ ] Device test: tap, long press, drag, swipe, buttons (NOT RUN)
 
 ## v0.5 — Networking
 
-- NCM link status in the UI, *Reconnect guest network* (`ipconfig set en0 DHCP`), auto-recovery
-  on link drop
+- [x] *Reconnect Guest Network* (`ipconfig set en0 DHCP` over the console), link status in overlay
+- [ ] Automatic recovery on link drop (needs a device to observe the drop signature)
 
 ## v0.6 — Guest agent and file transfer
 
-- `GuestTransport` with `ConsoleTransport` and `NetworkTransport`, fallback between them
-- Shell, push/pull with checksums, status, time and battery sync
+- [x] Console command framing (markers survive echo and kernel chatter), exit status, diagnosis
+- [x] File transfer to the guest over slirp (`/dev/tcp/10.0.2.2`), cksum on both ends
+- [ ] NetworkTransport interactive shell, pull from guest UI, console-only fallback transfer
+- [ ] Device test (NOT RUN)
 
 ## v0.7 — IPA installation
 
-- IPA inspector (ZIP central directory, `Payload/*.app`, arch, FairPlay `cryptid`), transfer,
-  install, SpringBoard refresh; distinct errors for invalid/encrypted/unsupported/offline/disk full
+- [x] IPA inspector: ZIP, `Payload/*.app`, Info.plist, Mach-O arches, FairPlay `cryptid`, minimum OS
+- [x] Guest tar from the IPA, transfer, install steps (`mount -uw /`, `tar`, `chown/chmod`, `uicache`)
+- [x] Distinct failures: invalid, encrypted, unsupported arch, newer iOS, guest offline, network
+      down, disk full, step failure
+- [ ] Device test (NOT RUN)
 
 ## v0.8 — VM manager
 

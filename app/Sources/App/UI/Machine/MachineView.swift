@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// A running machine: the guest's screen, its buttons, and its controls.
 struct MachineView: View {
@@ -8,6 +9,12 @@ struct MachineView: View {
     @State private var overlay = false
     @State private var confirmStop = false
     @State private var showConsole = false
+    @State private var showImporter = false
+    /// Kept apart from `showImporter`: the importer clears that before its completion runs.
+    @State private var importKind = ImportKind.file
+    @State private var showServices = false
+
+    enum ImportKind { case ipa, file }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -36,6 +43,12 @@ struct MachineView: View {
         } message: {
             Text(controller.lastError ?? "")
         }
+        .fileImporter(isPresented: $showImporter, allowedContentTypes: [.item]) { result in
+            guard case .success(let url) = result else { return }
+            if importKind == .ipa { controller.services.installIPA(url) } else { controller.services.sendFile(url) }
+            showServices = true
+        }
+        .sheet(isPresented: $showServices) { GuestServicesView(services: controller.services) }
         .confirmationDialog("Stop the machine?", isPresented: $confirmStop, titleVisibility: .visible) {
             Button("Stop", role: .destructive) { controller.stop() }
         } message: {
@@ -63,6 +76,15 @@ struct MachineView: View {
                 Button { controller.restart() } label: { Label("Restart", systemImage: "arrow.counterclockwise") }
                     .disabled(!controller.state.isLive)
                 Button(role: .destructive) { confirmStop = true } label: { Label("Stop", systemImage: "stop.fill") }
+                    .disabled(!controller.state.isLive)
+                Divider()
+                Button { controller.services.reconnectNetwork(); showServices = true } label: {
+                    Label("Reconnect Guest Network", systemImage: "network")
+                }
+                .disabled(!controller.state.isLive)
+                Button { importKind = .ipa; showImporter = true } label: { Label("Install IPA…", systemImage: "app.badge.plus") }
+                    .disabled(!controller.state.isLive)
+                Button { importKind = .file; showImporter = true } label: { Label("Send File to Guest…", systemImage: "doc.badge.arrow.up") }
                     .disabled(!controller.state.isLive)
                 Divider()
                 Button { fullscreen = true } label: { Label("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") }

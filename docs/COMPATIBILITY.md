@@ -9,6 +9,11 @@
 | Accelerator | TCG (multi-threaded) + JIT | no hypervisor for apps on iOS |
 | Build | `macos-26-arm64` image 20260907 (macOS 26.6.2), Xcode 26.6, iOS SDK 26.5, Swift 6.3.3 | pinned in deps.lock; Xcode 27 preview checked nightly |
 
+## Input
+
+One touch contact at a time: the emulated multitouch panel is driven by a single pointer
+(`hw/input/mt-spi.c`). Pinch and other multi-finger gestures are not available yet.
+
 ## Physical device results
 
 | Test | Result |
@@ -17,5 +22,13 @@
 | JIT detection | NOT RUN |
 | Mock runtime renders, touch/buttons reach it | NOT RUN |
 | Inferno initialises / kernel boots / SpringBoard | NOT RUN |
+| Console, boot phases, QMP on a phone | NOT RUN |
+| Network recovery, file transfer, IPA install | NOT RUN |
+
+## Host (Linux) results
+
+| Test | Result |
+|---|---|
+| Bridge against the real Inferno library (`tests/emulator/run-real.sh`, empty machine) | PASS locally and in CI (`emulator-host.yml` run 36227474271, ubuntu-24.04, clang 18) |
 
 Report results with the device model, host iOS version, build commit and diagnostics.zip.

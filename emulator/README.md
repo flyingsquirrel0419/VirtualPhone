@@ -31,3 +31,12 @@ Since 2026-09-17 the fork's display pipe links libyuv, built through meson's CMa
 `build-ios.sh` therefore needs `cmake` and writes a `[cmake]` section into the cross-file
 (iOS system name, the iPhoneOS SDK as sysroot, JPEG disabled so Homebrew's macOS libjpeg is never
 found).
+
+## Host-only patches
+
+`patches/host/` is applied by `scripts/build-host.sh` only, in its own tree
+(`build/emulator-host/src-tree`), never to `emulator/src` or the iOS library.
+
+| Patch | Why |
+|---|---|
+| `host/0001-hw-core-add-back-an-empty-none-machine.patch` | The fork removed QEMU's `none` machine; the Linux bridge test needs a machine that starts without Apple files. |
