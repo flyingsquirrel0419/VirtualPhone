@@ -76,7 +76,8 @@ final class GuestServices: ObservableObject {
         if networkShell?.isConnected != true, networkUp() {
             networkShell = connectNetworkShell()
         }
-        return FallbackTransport([networkShell, consoleShell].compactMap { $0 })
+        let candidates: [GuestTransport?] = [networkShell, consoleShell]
+        return FallbackTransport(candidates.compactMap { $0 })
     }
 
     /// Asks the guest (over the console) to call back with a bash on a socket.

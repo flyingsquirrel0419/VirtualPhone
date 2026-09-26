@@ -4,6 +4,11 @@ All notable changes. Versions follow [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-26
+
+Boot pipeline and guest services. Everything that needs a phone or a guest image is
+**NOT RUN** (see docs/COMPATIBILITY.md): this is an alpha for device testing.
+
 ### Added
 - Serial console (log tailer, console tab with input), boot phase detection with timings, QMP
   client, first-frame time, guest file status in settings.
@@ -13,6 +18,12 @@ All notable changes. Versions follow [Semantic Versioning](https://semver.org).
   (arch, FairPlay, minimum OS) and installation.
 - Per-device qcow2 overlays and state copies (config schema 2), reset, unclean-shutdown warning.
 - App icon (original artwork, `tools/icon/make_icon.py`).
+- Network shell transport (guest bash calls back over slirp) with console fallback; fetch files
+  from the guest; the phone's battery state in the guest.
+
+### Known issues
+- Not verified on a phone or with a guest: boot, console input, QMP, network recovery, file
+  transfer, IPA install, overlays. One touch contact at a time. One boot per app launch.
 
 ## [0.1.0] - 2026-09-26
 

@@ -4,7 +4,7 @@ Priorities: real iOS boot > stable runtime > usable controls > VM management > p
 polish. A milestone is done when its criteria are met **on a physical device** where stated;
 results that need a phone are recorded as NOT RUN until someone runs them.
 
-## v0.1 — Bootstrap (current)
+## v0.1 — Bootstrap (done)
 
 - [x] Upstream surveyed and pinned (docs/UPSTREAM.md, deps.lock)
 - [x] Linux bootstrap, lint, unit tests, bridge tests with mock emulator
@@ -49,7 +49,10 @@ Goal: kernel boot output captured.
 
 - [x] Console command framing (markers survive echo and kernel chatter), exit status, diagnosis
 - [x] File transfer to the guest over slirp (`/dev/tcp/10.0.2.2`), cksum on both ends
-- [ ] NetworkTransport interactive shell, pull from guest UI, console-only fallback transfer
+- [x] Network shell transport (guest bash on a socket via `/dev/tcp`), console fallback;
+      tested against a real bash calling back
+- [x] Fetch files from the guest (cksum-checked); host battery → guest SMC
+- [ ] Console-only file transfer when the guest has no network; time zone sync
 - [ ] Device test (NOT RUN)
 
 ## v0.7 — IPA installation
