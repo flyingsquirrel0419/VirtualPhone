@@ -46,6 +46,7 @@ an Actions artifact. Guest boot is not part of v0.1.
 | `nm \| grep -q` export check could SIGPIPE under pipefail | review | list exports once, grep a here-string |
 | meson: `Unable to find CMake` in `hw/display` (libyuv, added to the fork 2026-09-17) | macOS CI (dependency) | cmake in bootstrap + `[cmake]` iOS toolchain section in the cross-file |
 | fork's `libyuv.wrap`/`mlib.wrap` track `main`/`master` (not reproducible) | same investigation | patch 0001 pins both; fetch.sh rejects unpinned wraps |
+| dylib link: `_libucontext_*` undefined — clang++ links (libyuv is C++) and `cpp_link_args` lacked `-lucontext` | macOS CI (linker) | C++ link args mirror the C ones; clean retry only after a cache hit |
 | meson: `Dependency "liblz4" not found` (hw/usb, fork 2026-09-18) | macOS CI (dependency) | LZ4 1.10.0 added to deps.lock and the dependency build; all `required: true` deps of the fork audited — none other missing |
 
 ## Remaining issues

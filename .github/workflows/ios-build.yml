@@ -128,9 +128,13 @@ jobs:
           key: emu-build-xcode${{ steps.fp.outputs.xcode }}-${{ steps.fp.outputs.emu }}-${{ steps.fp.outputs.lock }}-${{ hashFiles('emulator/patches/**', 'emulator/scripts/build-ios.sh') }}
 
       - name: Build emulator library
+        env:
+          CACHED_TREE: ${{ steps.emu-cache.outputs.cache-hit }}
         run: |
-          # A stale or corrupt cached tree must not fail the build: retry clean.
+          # A stale or corrupt cached tree must not fail the build: retry clean,
+          # but only when the tree came from the cache (a fresh tree would fail again).
           if ! emulator/scripts/build-ios.sh; then
+            [ "$CACHED_TREE" = true ] || exit 1
             echo "::warning::emulator build failed with cached tree; retrying clean"
             rm -rf build/emulator
             emulator/scripts/build-ios.sh

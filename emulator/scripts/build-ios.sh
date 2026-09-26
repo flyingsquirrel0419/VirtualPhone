@@ -47,8 +47,9 @@ cmake      = '$CMAKE'
 [built-in options]
 c_args         = [$FLAGS, '-I$PREFIX/include']
 c_link_args    = [$FLAGS, '-L$PREFIX/lib', '-framework', 'CoreFoundation', '-lucontext']
-cpp_args       = [$FLAGS]
-cpp_link_args  = [$FLAGS]
+cpp_args       = [$FLAGS, '-I$PREFIX/include']
+# libyuv is C++, so the final dylib is linked by clang++ with these.
+cpp_link_args  = [$FLAGS, '-L$PREFIX/lib', '-framework', 'CoreFoundation', '-lucontext']
 objc_args      = [$FLAGS]
 # Without this, a target with one Objective-C file links for the host.
 objc_link_args = [$FLAGS, '-L$PREFIX/lib', '-framework', 'CoreFoundation', '-lucontext']
