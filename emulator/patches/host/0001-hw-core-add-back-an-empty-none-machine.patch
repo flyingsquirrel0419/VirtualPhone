@@ -8,16 +8,11 @@ The fork removed QEMU's null machine. VirtualPhone's host build applies
 this so the runtime bridge can be driven against the real library on
 Linux without any Apple firmware. Never applied to the iOS library.
 ---
- .vp-patched            |  0
  hw/core/meson.build    |  1 +
  hw/core/null-machine.c | 34 ++++++++++++++++++++++++++++++++++
- 3 files changed, 35 insertions(+)
- create mode 100644 .vp-patched
+ 2 files changed, 35 insertions(+)
  create mode 100644 hw/core/null-machine.c
 
-diff --git a/.vp-patched b/.vp-patched
-new file mode 100644
-index 0000000..e69de29
 diff --git a/hw/core/meson.build b/hw/core/meson.build
 index 1bbae4d..05720f6 100644
 --- a/hw/core/meson.build

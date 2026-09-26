@@ -42,6 +42,12 @@ if [ "$have" != "$COMMIT" ]; then
     exit 1
 fi
 
+# A patch made from a prepared tree can carry our marker files; refuse it.
+if grep -l '^diff --git a/\.vp-' "$PATCHES"/*.patch "$PATCHES"/host/*.patch 2>/dev/null; then
+    echo "emulator: the patches above touch .vp-* marker files; regenerate them from a clean tree" >&2
+    exit 1
+fi
+
 count=0
 if [ -f "$PATCHES/series" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
