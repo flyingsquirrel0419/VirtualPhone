@@ -5,6 +5,7 @@
 
 The bridge calls the emulator through function pointers typed by that header.
 If the pinned emulator changes a signature, a struct layout or an enum value,
+or drops an option, machine property or device the app's command line uses,
 this fails before any macOS minute is spent.
 """
 from __future__ import annotations
@@ -42,6 +43,32 @@ MAIN_LOOP_DECLS = [
     "bool bql_locked(void);",
 ]
 ENUMS = {"RunState": ("paused", 3), "ShutdownCause": ("host-ui", 5)}
+ARGUMENTS = Path(__file__).resolve().parents[2] / "app/Sources/Core/EmulatorArguments.swift"
+
+
+def check_arguments(src: Path) -> list[str]:
+    """Every option, machine property and device the app passes must exist in
+    the pinned tree: qemu_init exit()s on an unknown one, taking the app with it."""
+    swift = ARGUMENTS.read_text()
+    problems = []
+    defined = set(re.findall(r'^DEF\("([A-Za-z0-9_-]+)"', (src / "qemu-options.hx").read_text(), re.M))
+    for opt in sorted(set(re.findall(r'"-([a-z][A-Za-z0-9_-]*)"', swift))):
+        if opt not in defined:
+            problems.append(f"option -{opt} is not defined in qemu-options.hx")
+    machine_src = (src / "hw/arm/t8030.c").read_text()
+    props = set(re.findall(r'"([a-z][a-z0-9-]*)"', machine_src))
+    block = swift[swift.index('let machine = ['):swift.index('].joined(separator: ",")')]
+    for prop in sorted(set(re.findall(r'"([a-z][a-z0-9-]*)=', block))):
+        if prop not in props:
+            problems.append(f"t8030 machine property {prop} not found in hw/arm/t8030.c")
+    if '"t8030"' not in swift:
+        problems.append("EmulatorArguments no longer names the t8030 machine")
+    names = set(re.findall(r'"([a-z][a-z0-9.-]+),(?:drive|netdev)=', swift)) | set(re.findall(r'driver=([a-z0-9.-]+),', swift))
+    tree = "\n".join(f.read_text(errors="ignore") for d in ("hw", "include") for f in (src / d).rglob("*.[ch]"))
+    for name in sorted(names):
+        if f'"{name}"' not in tree:
+            problems.append(f"device {name} is not defined in the emulator tree")
+    return problems
 
 
 def squash(text: str) -> str:
@@ -87,11 +114,13 @@ def main(argv: list[str]) -> int:
         if got != want:
             problems.append(f"qapi {enum}.{member} is {got}, bridge assumes {want}")
 
+    problems += check_arguments(src)
+
     for p in problems:
         print(f"ABI MISMATCH: {p}")
     if problems:
         return 1
-    print(f"ABI OK: {sum(len(d) for _, d in checks) + len(ENUMS)} declarations match {src}")
+    print(f"ABI OK: {sum(len(d) for _, d in checks) + len(ENUMS)} declarations and the emulator command line match {src}")
     return 0
 
 

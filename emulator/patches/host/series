@@ -1,0 +1,3 @@
+# Patches applied only by emulator/scripts/build-host.sh (Linux/macOS host test
+# builds), after ../series. Never part of the iOS library.
+0001-hw-core-add-back-an-empty-none-machine.patch

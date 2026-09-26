@@ -92,7 +92,6 @@ int main(int argc, char **argv)
     const char *args[] = {"qemu-system-aarch64",
                           "-M",
                           "none",
-                          "-nodefaults",
                           "-display",
                           "none",
                           "-monitor",

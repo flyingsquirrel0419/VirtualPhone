@@ -12,12 +12,24 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-SRC="${EMULATOR_SRC:-$ROOT/emulator/src}"
 BUILD="${EMULATOR_HOST_BUILD:-$ROOT/build/emulator-host}"
+# A tree of its own: the host-only patches must never reach emulator/src,
+# which the iOS build uses.
+SRC="${EMULATOR_SRC:-$BUILD/src-tree}"
 MESON="${MESON:-meson}"
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN)}"
 
-[ -f "$SRC/.vp-patched" ] || "$ROOT/emulator/scripts/fetch.sh" "$SRC"
+if [ ! -f "$SRC/.vp-host-patched" ]; then
+    rm -rf "$SRC"
+    "$ROOT/emulator/scripts/fetch.sh" "$SRC"
+    while IFS= read -r line || [ -n "$line" ]; do
+        patch="$(echo "${line%%#*}" | xargs)"
+        [ -z "$patch" ] && continue
+        echo "emulator (host): applying $patch"
+        git -C "$SRC" apply "$ROOT/emulator/patches/host/$patch"
+    done < "$ROOT/emulator/patches/host/series"
+    touch "$SRC/.vp-host-patched"
+fi
 
 # Nettle at the pinned version, checksum-verified, into a host prefix.
 HOST_PREFIX="${HOST_PREFIX:-$BUILD/prefix}"

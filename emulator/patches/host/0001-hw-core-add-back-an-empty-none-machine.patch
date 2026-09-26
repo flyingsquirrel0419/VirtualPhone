@@ -1,0 +1,75 @@
+From 103a3b6865dde128b6172ff213f718889ffa8075 Mon Sep 17 00:00:00 2001
+From: VirtualPhone <noreply@virtualphone.invalid>
+Date: Sat, 26 Sep 2026 16:35:35 +0900
+Subject: [PATCH] hw/core: add back an empty 'none' machine (host test builds
+ only)
+
+The fork removed QEMU's null machine. VirtualPhone's host build applies
+this so the runtime bridge can be driven against the real library on
+Linux without any Apple firmware. Never applied to the iOS library.
+---
+ .vp-patched            |  0
+ hw/core/meson.build    |  1 +
+ hw/core/null-machine.c | 34 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 35 insertions(+)
+ create mode 100644 .vp-patched
+ create mode 100644 hw/core/null-machine.c
+
+diff --git a/.vp-patched b/.vp-patched
+new file mode 100644
+index 0000000..e69de29
+diff --git a/hw/core/meson.build b/hw/core/meson.build
+index 1bbae4d..05720f6 100644
+--- a/hw/core/meson.build
++++ b/hw/core/meson.build
+@@ -19,6 +19,7 @@ system_ss.add(when: 'CONFIG_PTIMER', if_true: files('ptimer.c'))
+ system_ss.add(when: 'CONFIG_REGISTER', if_true: files('register.c'))
+ system_ss.add(when: 'CONFIG_SPLIT_IRQ', if_true: files('split-irq.c'))
+ 
++system_ss.add(files('null-machine.c'))
+ system_ss.add(files(
+   'cpu-system.c',
+   'fw-path-provider.c',
+diff --git a/hw/core/null-machine.c b/hw/core/null-machine.c
+new file mode 100644
+index 0000000..ed13eb3
+--- /dev/null
++++ b/hw/core/null-machine.c
+@@ -0,0 +1,34 @@
++/*
++ * An empty machine: no CPU, no devices, optional RAM at address zero.
++ *
++ * QEMU's own `none` machine (hw/core/null-machine.c, GPL-2.0-or-later,
++ * Copyright Red Hat, Inc.), reduced to what the fork's MachineClass still has.
++ * The Inferno fork removed it; VirtualPhone adds it back in host test builds
++ * only, so its runtime bridge can drive the real library without Apple files.
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ */
++#include "qemu/osdep.h"
++#include "qemu/error-report.h"
++#include "hw/boards.h"
++#include "system/address-spaces.h"
++
++static void machine_none_init(MachineState* mch)
++{
++    if (mch->ram) { memory_region_add_subregion(get_system_memory(), 0, mch->ram); }
++    if (mch->kernel_filename) {
++        error_report("The -kernel parameter is not supported by the none machine");
++        exit(1);
++    }
++}
++
++static void machine_none_machine_init(MachineClass* mc)
++{
++    mc->desc             = "empty machine (VirtualPhone host tests)";
++    mc->init             = machine_none_init;
++    mc->max_cpus         = 1;
++    mc->default_ram_size = 0;
++    mc->default_ram_id   = "ram";
++}
++
++DEFINE_MACHINE("none", machine_none_machine_init)
+-- 
+2.43.0
+
