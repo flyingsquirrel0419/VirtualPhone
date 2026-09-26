@@ -1,0 +1,166 @@
+name: iOS Build
+
+# Builds the emulator library and the app on a pinned macOS runner and Xcode,
+# and uploads the .ipa as an Actions artifact. Not run on PRs: macOS minutes
+# are expensive, and Linux CI already gates every push. Also a reusable
+# workflow for release.yml and nightly.yml, which always build fresh.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "emulator/**"
+      - "scripts/**"
+      - "tools/**"
+      - "deps.lock"
+      - "VERSION"
+      - "Package.swift"
+      - ".github/workflows/ios-build.yml"
+    tags: ["v*-rc*"]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Release channel written into the app"
+        default: dev
+        type: choice
+        options: [dev, nightly, alpha, beta, stable]
+      clean:
+        description: "Ignore caches (clean build)"
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      channel:
+        type: string
+        default: dev
+      artifact-name:
+        type: string
+        default: ""
+      clean:
+        type: boolean
+        default: true
+    outputs:
+      artifact-name:
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-build-${{ github.ref }}-${{ inputs.channel || 'dev' }}
+  # Superseded pushes to main are cancelled; releases and nightlies never are.
+  cancel-in-progress: ${{ github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  linux:
+    uses: ./.github/workflows/linux-ci.yml
+
+  build:
+    name: Build IPA (macOS)
+    needs: linux
+    runs-on: macos-26
+    timeout-minutes: 150
+    env:
+      PREFIX: ${{ github.workspace }}/prefix
+      CHANNEL: ${{ inputs.channel || 'dev' }}
+      BUILD_NUMBER: ${{ github.run_number }}
+      JOBS: "3"
+      CLEAN: ${{ inputs.clean && 'true' || 'false' }}
+    outputs:
+      artifact-name: ${{ steps.name.outputs.name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # BUILD metadata counts commits
+
+      - name: Toolchain (pinned Xcode, build tools)
+        run: scripts/bootstrap-macos.sh
+
+      - name: Build fingerprint
+        id: fp
+        run: |
+          echo "xcode=$(xcodebuild -version | head -1 | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          echo "macos=$(sw_vers -productVersion | cut -d. -f1)" >> "$GITHUB_OUTPUT"
+          echo "lock=$(python3 tools/deps/lockfile.py hash | cut -c1-16)" >> "$GITHUB_OUTPUT"
+          echo "emu=$(python3 tools/deps/lockfile.py get emulator.commit | cut -c1-12)" >> "$GITHUB_OUTPUT"
+          echo "sdk=$(xcrun --sdk iphoneos --show-sdk-version)" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Build environment"
+            echo "- macOS: $(sw_vers -productVersion) ($(sw_vers -buildVersion))"
+            echo "- Xcode: $(xcodebuild -version | tr '\n' ' ')"
+            echo "- iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+            echo "- Emulator: $(python3 tools/deps/lockfile.py get emulator.commit)"
+            echo "- Channel: $CHANNEL"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore iOS dependency prefix
+        id: deps-cache
+        if: env.CLEAN != 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: prefix
+          key: ios-deps-macos${{ steps.fp.outputs.macos }}-xcode${{ steps.fp.outputs.xcode }}-arm64-${{ steps.fp.outputs.lock }}-${{ hashFiles('emulator/scripts/build-ios-deps.sh') }}
+
+      - name: Build iOS dependencies
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        run: |
+          rm -rf "$PREFIX"
+          emulator/scripts/build-ios-deps.sh
+
+      - name: Save iOS dependency prefix
+        if: steps.deps-cache.outputs.cache-hit != 'true' && env.CLEAN != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: prefix
+          key: ios-deps-macos${{ steps.fp.outputs.macos }}-xcode${{ steps.fp.outputs.xcode }}-arm64-${{ steps.fp.outputs.lock }}-${{ hashFiles('emulator/scripts/build-ios-deps.sh') }}
+
+      - name: Fetch pinned emulator
+        run: emulator/scripts/fetch.sh
+
+      - name: Restore emulator build tree
+        id: emu-cache
+        if: env.CLEAN != 'true'
+        uses: actions/cache/restore@v6
+        with:
+          path: build/emulator
+          key: emu-build-xcode${{ steps.fp.outputs.xcode }}-${{ steps.fp.outputs.emu }}-${{ steps.fp.outputs.lock }}-${{ hashFiles('emulator/patches/**', 'emulator/scripts/build-ios.sh') }}
+
+      - name: Build emulator library
+        run: |
+          # A stale or corrupt cached tree must not fail the build: retry clean.
+          if ! emulator/scripts/build-ios.sh; then
+            echo "::warning::emulator build failed with cached tree; retrying clean"
+            rm -rf build/emulator
+            emulator/scripts/build-ios.sh
+          fi
+
+      - name: Save emulator build tree
+        if: steps.emu-cache.outputs.cache-hit != 'true' && env.CLEAN != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: build/emulator
+          key: emu-build-xcode${{ steps.fp.outputs.xcode }}-${{ steps.fp.outputs.emu }}-${{ steps.fp.outputs.lock }}-${{ hashFiles('emulator/patches/**', 'emulator/scripts/build-ios.sh') }}
+
+      - name: Build app and IPA
+        run: app/build.sh
+
+      - name: Artifact name and checksum
+        id: name
+        run: |
+          name="${{ inputs.artifact-name }}"
+          [ -n "$name" ] || name="VirtualPhone-${GITHUB_SHA}"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          mkdir -p out
+          cp dist/*.ipa "out/$name.ipa"
+          scripts/checksum.sh out "out/$name.ipa"
+          python3 tools/ipa/verify_ipa.py "out/$name.ipa" --json >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.name.outputs.name }}
+          path: |
+            out/*.ipa
+            out/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30

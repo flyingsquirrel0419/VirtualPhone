@@ -1,0 +1,85 @@
+name: Linux CI
+
+# Fast validation on every push and PR (target: under 10 minutes). Also called
+# by ios-build.yml, so no macOS minutes are spent on a tree that fails here.
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["**"]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint, policy, unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq shellcheck clang-format python3-yaml
+          shellcheck --version | sed -n 2p
+          clang-format --version
+      - name: shellcheck
+        run: git ls-files -z '*.sh' | xargs -0 shellcheck -x
+      - name: Workflow policy
+        run: python3 tools/release/check_workflows.py
+      - name: deps.lock
+        run: python3 tools/deps/lockfile.py validate
+      - name: Forbidden files and secrets
+        run: python3 tools/release/forbidden_scan.py tree .
+      - name: C formatting
+        run: git ls-files -z '*.c' '*.h' | xargs -0 clang-format --dry-run --Werror
+      - name: Documentation links
+        run: python3 tools/release/check_links.py
+      - name: Python unit tests
+        run: python3 -m unittest discover -s tests/unit/python -v
+      - name: Swift static checks
+        run: |
+          # No UIKit on Linux; catch the obvious before a macOS run is spent.
+          if grep -rn --include='*.swift' -E 'import (UIKit|SwiftUI)' app/Sources/Core; then
+            echo "app/Sources/Core must stay platform-independent" >&2; exit 1
+          fi
+          if grep -rn --include='*.swift' -E '^\s*import VirtualPhoneCore' app/Sources/App; then
+            echo "the app compiles Core into its own module; do not import VirtualPhoneCore" >&2; exit 1
+          fi
+
+  runtime-bridge:
+    name: Runtime bridge (mock emulator, ASan/UBSan)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: tests/emulator/run.sh
+      - name: Same with clang
+        run: CC=clang tests/emulator/run.sh
+
+  swift-core:
+    name: Swift core tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container: swift:6.1.2-noble
+    steps:
+      - uses: actions/checkout@v7
+      - run: swift test
+
+  emulator-patches:
+    name: Emulator pin and patches apply
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch pinned commit and apply patches
+        run: emulator/scripts/fetch.sh "$RUNNER_TEMP/emulator-src"
+      - name: Bridge ABI matches the pinned emulator
+        run: python3 tools/deps/check_abi.py "$RUNNER_TEMP/emulator-src"

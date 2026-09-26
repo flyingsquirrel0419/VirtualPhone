@@ -1,0 +1,140 @@
+{
+  "schema": 1,
+  "comment": "Pinned inputs of the iOS build. Changing anything here invalidates the dependency cache. Update in a dedicated PR (see CONTRIBUTING.md).",
+  "emulator": {
+    "name": "inferno-ios",
+    "repository": "https://github.com/MakrSas/Inferno.git",
+    "branch": "ios",
+    "commit": "b76fa575831d94a80db169ffb3c76d9094a648bd",
+    "version": "InfernoiOS-1.0.0rc1_QEMU-10.2.2_10.1.3_hybrid",
+    "license": "GPL-3.0 (ChefKiss parts AGPL-3.0)"
+  },
+  "references": [
+    {
+      "name": "chefkiss-inferno",
+      "repository": "https://github.com/ChefKissInc/Inferno.git",
+      "branch": "master",
+      "commit": "cc4302a99167abec69b714cfd00c38caece7e7de"
+    },
+    {
+      "name": "inferno-ios-app",
+      "repository": "https://github.com/MakrSas/Inferno-iOS.git",
+      "branch": "main",
+      "commit": "4bc39702871f5a118d96acbad4df7a675ddf14e0"
+    }
+  ],
+  "toolchain": {
+    "runner": "macos-26",
+    "xcode": "26.6",
+    "xcode_path": "/Applications/Xcode_26.6.app",
+    "ios_deployment_target": "16.0",
+    "arch": "arm64"
+  },
+  "packages": [
+    {
+      "name": "zlib",
+      "version": "1.3.1",
+      "license": "Zlib",
+      "file": "zlib-1.3.1.tar.gz",
+      "sha256": "9a93b2b7dfdac77ceba5a558a580e74667dd6fede4585b91eefb60f03b72df23",
+      "urls": [
+        "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz",
+        "https://zlib.net/fossils/zlib-1.3.1.tar.gz"
+      ]
+    },
+    {
+      "name": "gmp",
+      "version": "6.3.0",
+      "license": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+      "file": "gmp-6.3.0.tar.xz",
+      "sha256": "a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898",
+      "urls": [
+        "https://ftp.gnu.org/gnu/gmp/gmp-6.3.0.tar.xz",
+        "https://mirrors.kernel.org/gnu/gmp/gmp-6.3.0.tar.xz"
+      ]
+    },
+    {
+      "name": "nettle",
+      "version": "3.10.2",
+      "license": "LGPL-3.0-or-later OR GPL-2.0-or-later",
+      "file": "nettle-3.10.2.tar.gz",
+      "sha256": "fe9ff51cb1f2abb5e65a6b8c10a92da0ab5ab6eaf26e7fc2b675c45f1fb519b5",
+      "urls": [
+        "https://ftp.gnu.org/gnu/nettle/nettle-3.10.2.tar.gz",
+        "https://mirrors.kernel.org/gnu/nettle/nettle-3.10.2.tar.gz"
+      ]
+    },
+    {
+      "name": "libtasn1",
+      "version": "4.20.0",
+      "license": "LGPL-2.1-or-later",
+      "file": "libtasn1-4.20.0.tar.gz",
+      "sha256": "92e0e3bd4c02d4aeee76036b2ddd83f0c732ba4cda5cb71d583272b23587a76c",
+      "urls": [
+        "https://ftp.gnu.org/gnu/libtasn1/libtasn1-4.20.0.tar.gz",
+        "https://mirrors.kernel.org/gnu/libtasn1/libtasn1-4.20.0.tar.gz"
+      ]
+    },
+    {
+      "name": "libpng",
+      "version": "1.6.58",
+      "license": "libpng-2.0",
+      "file": "libpng-1.6.58.tar.gz",
+      "sha256": "a9d4df463d36a6e5f9c29bd6f4967312d17e996c1854f3511f833924eb1993cf",
+      "urls": [
+        "https://github.com/pnggroup/libpng/archive/refs/tags/v1.6.58.tar.gz"
+      ]
+    },
+    {
+      "name": "pixman",
+      "version": "0.44.2",
+      "license": "MIT",
+      "file": "pixman-0.44.2.tar.gz",
+      "sha256": "6349061ce1a338ab6952b92194d1b0377472244208d47ff25bef86fc71973466",
+      "urls": [
+        "https://www.cairographics.org/releases/pixman-0.44.2.tar.gz"
+      ]
+    },
+    {
+      "name": "glib",
+      "version": "2.84.3",
+      "license": "LGPL-2.1-or-later",
+      "file": "glib-2.84.3.tar.xz",
+      "sha256": "aa4f87c3225bf57ca85f320888f7484901a17934ca37023c3bd8435a72db863e",
+      "urls": [
+        "https://download.gnome.org/sources/glib/2.84/glib-2.84.3.tar.xz",
+        "https://ftp.acc.umu.se/pub/gnome/sources/glib/2.84/glib-2.84.3.tar.xz"
+      ]
+    },
+    {
+      "name": "libslirp",
+      "version": "4.9.1",
+      "license": "BSD-3-Clause",
+      "file": "libslirp-4.9.1.tar.gz",
+      "sha256": "3970542143b7c11e6a09a4d2b50f30a133473c41f15ed0bdcc3b7a1c450d9a5c",
+      "urls": [
+        "https://gitlab.freedesktop.org/slirp/libslirp/-/archive/v4.9.1/libslirp-v4.9.1.tar.gz"
+      ]
+    },
+    {
+      "name": "libucontext",
+      "version": "1.3.2",
+      "license": "ISC",
+      "file": "libucontext-1.3.2.tar.gz",
+      "sha256": "4faf1838a15d61efe27ddac24fded2c290929eb3a1fefc72f952ae96d5bda006",
+      "urls": [
+        "https://github.com/kaniini/libucontext/archive/refs/tags/libucontext-1.3.2.tar.gz"
+      ]
+    },
+    {
+      "name": "lzfse",
+      "version": "1.0",
+      "license": "BSD-3-Clause",
+      "file": "lzfse-1.0.tar.gz",
+      "sha256": "cf85f373f09e9177c0b21dbfbb427efaedc02d035d2aade65eb58a3cbf9ad267",
+      "urls": [
+        "https://github.com/lzfse/lzfse/archive/refs/tags/lzfse-1.0.tar.gz"
+      ]
+    }
+  ]
+}

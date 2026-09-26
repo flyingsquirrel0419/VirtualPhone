@@ -1,0 +1,32 @@
+name: Dependency check
+
+# Weekly: every pinned tarball still downloads and matches its checksum, and
+# how far upstream has moved from our pins. Reports drift; never updates pins
+# (that is a dedicated PR, see CONTRIBUTING.md).
+
+on:
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths: ["deps.lock"]
+
+permissions:
+  contents: read
+
+jobs:
+  tarballs:
+    name: Pinned tarballs reachable and intact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 tools/deps/check_upstream.py tarballs
+
+  upstream:
+    name: Upstream drift
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - run: python3 tools/deps/check_upstream.py drift >> "$GITHUB_STEP_SUMMARY"

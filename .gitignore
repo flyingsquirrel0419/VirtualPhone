@@ -1,0 +1,56 @@
+# Build outputs
+/build/
+/prefix/
+/.deps-build/
+/emulator/src/
+/emulator/build/
+/app/.build/
+/.build/
+/dist/
+*.ipa
+*.tipa
+*.o
+*.a
+*.dylib
+*.so
+cross-ios-arm64.txt
+app/Sources/App/BuildInfo.swift
+
+# Python
+__pycache__/
+*.pyc
+
+# Never commit Apple proprietary files, guest images or signing material.
+# tools/release/forbidden_scan.py enforces this in CI regardless of this file.
+*.ipsw
+*.im4p
+*.img4
+*.im4m
+*.trustcache
+*.qcow2
+*.img
+*.dmg
+*.shsh*
+kernelcache*
+AppleSEPROM*
+InfernoData/
+*.vphone/
+*.mobileprovision
+*.p12
+*.pfx
+*.mobiledevicepairing
+*.pem
+*.key
+.env
+.env.*
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Local agent tooling
+.claude/
+.claude-flow/
+.swarm/

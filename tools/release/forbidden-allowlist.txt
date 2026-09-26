@@ -1,0 +1,12 @@
+# Paths the forbidden-file scanner accepts although they are large or binary.
+# fnmatch patterns against the path relative to the scanned root (or archive).
+# Every entry needs a reason. Never add Apple firmware, images or keys here.
+
+# The app's own executable and the emulator library inside the IPA.
+Payload/*.app/VirtualPhone        # main executable (Mach-O arm64)
+Payload/*.app/Frameworks/libqemu-aarch64-softmmu.dylib   # Inferno, built from the pinned source
+Payload/*.app/Assets.car          # compiled asset catalog
+Payload/*.app/_CodeSignature/*    # ad-hoc signature
+
+# The GPL text is long but not binary; listed for clarity.
+LICENSE

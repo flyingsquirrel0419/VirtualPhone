@@ -1,0 +1,8 @@
+# VirtualPhone patches on top of the pinned emulator commit (deps.lock).
+# One file name per line, applied in order by emulator/scripts/fetch.sh.
+# Each patch must have a header saying what it changes and why, and an entry
+# in emulator/README.md. Keep this list short: prefer the runtime bridge
+# (app/Runtime) over patching QEMU.
+#
+# (none yet — the pinned MakrSas/Inferno `ios` fork already exports the embed
+#  API the bridge needs)

@@ -1,0 +1,85 @@
+name: Release
+
+# A tag vX.Y.Z (or vX.Y.Z-alpha.N / -beta.N) builds the app from a clean
+# checkout with no caches, re-runs the whole validation, and publishes a
+# GitHub Release with only the .ipa, SHA256SUMS and an SBOM. Any failed gate
+# means no release.
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+", "v[0-9]+.[0-9]+.[0-9]+-alpha.*", "v[0-9]+.[0-9]+.[0-9]+-beta.*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Tag and version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      channel: ${{ steps.v.outputs.channel }}
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: v
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="$(tr -d '[:space:]' < VERSION)"
+          base="${tag#v}"; base="${base%%-*}"
+          [ "$base" = "$version" ] || { echo "tag $tag does not match VERSION $version" >&2; exit 1; }
+          case "$tag" in
+            *-alpha.*) channel=alpha ;;
+            *-beta.*)  channel=beta ;;
+            *)         channel=stable ;;
+          esac
+          grep -q "^## \[$version\]" CHANGELOG.md || { echo "CHANGELOG.md has no [$version] section" >&2; exit 1; }
+          echo "channel=$channel" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: validate
+    uses: ./.github/workflows/ios-build.yml
+    with:
+      channel: ${{ needs.validate.outputs.channel }}
+      artifact-name: release-${{ github.ref_name }}
+      clean: true
+
+  publish:
+    name: Verify and publish
+    needs: [validate, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-${{ github.ref_name }}
+          path: incoming
+      - name: Assemble release assets
+        run: |
+          mkdir -p dist
+          ipa="dist/VirtualPhone-${GITHUB_REF_NAME}.ipa"
+          cp incoming/*.ipa "$ipa"
+          python3 tools/release/sbom.py > dist/SBOM.spdx.json
+          python3 tools/release/release_notes.py "${{ needs.validate.outputs.version }}" > dist/RELEASE_NOTES.md
+          scripts/checksum.sh dist "$ipa" dist/SBOM.spdx.json
+      - name: Release gate
+        run: |
+          scripts/verify-release.sh dist "${GITHUB_REF_NAME%%-*}"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pre=""
+          [ "${{ needs.validate.outputs.channel }}" = stable ] || pre="--prerelease"
+          gh release create "$GITHUB_REF_NAME" $pre \
+            --title "VirtualPhone $GITHUB_REF_NAME" \
+            --notes-file dist/RELEASE_NOTES.md \
+            dist/*.ipa dist/SHA256SUMS dist/SBOM.spdx.json

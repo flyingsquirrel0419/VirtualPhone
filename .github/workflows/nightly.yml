@@ -1,0 +1,59 @@
+name: Nightly
+
+# A nightly .ipa as an Actions artifact (never a GitHub Release), only when
+# main changed in the last day. Plus an early-warning compile against the
+# Xcode 27 preview image, which never blocks anything.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  changed:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.c.outputs.run }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 50
+      - id: c
+        run: |
+          if [ "${{ github.event_name }}" = workflow_dispatch ] || [ -n "$(git log --since='25 hours ago' --format=%H -1)" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
+    uses: ./.github/workflows/ios-build.yml
+    with:
+      channel: nightly
+      artifact-name: VirtualPhone-nightly-${{ github.run_number }}
+      clean: false
+
+  xcode27-preview:
+    name: UI-only build on Xcode 27 preview (non-blocking)
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Build without the emulator library
+        env:
+          REQUIRE_EMULATOR: "0"
+          CHANNEL: nightly
+        run: |
+          xcodebuild -version
+          app/build.sh

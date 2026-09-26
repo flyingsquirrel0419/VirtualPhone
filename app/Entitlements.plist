@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Lets a debugger attach, which is how JIT enablers make TCG's
+         translation buffer executable (docs/JIT.md). -->
+    <key>get-task-allow</key>
+    <true/>
+    <!-- The guest wants gigabytes; the default per-app limit is far lower.
+         Honoured only when the signing identity may grant them; a sideloading
+         tool re-signs and decides. -->
+    <key>com.apple.developer.kernel.increased-memory-limit</key>
+    <true/>
+    <key>com.apple.developer.kernel.extended-virtual-addressing</key>
+    <true/>
+</dict>
+</plist>
