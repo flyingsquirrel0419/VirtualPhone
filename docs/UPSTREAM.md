@@ -51,7 +51,9 @@ Our own changes live in the runtime bridge (`app/Runtime`).
 
 - Dependencies for arm64 iOS, static, in one prefix: zlib 1.3.1, GMP 6.3.0, nettle 3.10.2,
   libtasn1 4.20.0, libpng 1.6.58, pixman 0.44.2, glib 2.84.3 (+ bundled libffi, pcre2 with JIT
-  off, proxy-libintl), libslirp 4.9.1, libucontext 1.3.2 (`freestanding=true`), lzfse 1.0.
+  off, proxy-libintl), libslirp 4.9.1, libucontext 1.3.2 (`freestanding=true`), lzfse 1.0 —
+  plus, since the fork's 2026-09-18 USB uplink work, **LZ4 1.10.0** (required by `hw/usb`), and
+  **CMake** for the libyuv subproject. Inferno-iOS's published recipe predates both.
   Our [`emulator/scripts/build-ios-deps.sh`](../emulator/scripts/build-ios-deps.sh) is adapted
   from Inferno-iOS's script, with every tarball verified against a SHA-256 in `deps.lock`.
 - Meson cross-file for `darwin/ios/aarch64`, deployment target 16.0.

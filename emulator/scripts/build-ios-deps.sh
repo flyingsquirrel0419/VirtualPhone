@@ -153,6 +153,11 @@ meson_build libslirp
 fetch libucontext
 meson_build libucontext -Dfreestanding=true
 
+# Required by the fork's USB uplink (hw/usb, since 2026-09-18); found via liblz4.pc.
+fetch lz4
+make -C lz4/lib -j"$JOBS" BUILD_SHARED=no PREFIX="$PREFIX" liblz4.a liblz4.pc
+make -C lz4/lib install BUILD_SHARED=no PREFIX="$PREFIX"
+
 fetch lzfse
 make -C lzfse -j"$JOBS" CC="$CC" INSTALL_PREFIX="$PREFIX"
 make -C lzfse install INSTALL_PREFIX="$PREFIX"

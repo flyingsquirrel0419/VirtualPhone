@@ -158,6 +158,16 @@
       "urls": [
         "https://github.com/lzfse/lzfse/archive/refs/tags/lzfse-1.0.tar.gz"
       ]
+    },
+    {
+      "name": "lz4",
+      "version": "1.10.0",
+      "license": "BSD-2-Clause",
+      "file": "lz4-1.10.0.tar.gz",
+      "sha256": "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b",
+      "urls": [
+        "https://github.com/lz4/lz4/releases/download/v1.10.0/lz4-1.10.0.tar.gz"
+      ]
     }
   ]
 }

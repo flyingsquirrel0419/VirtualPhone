@@ -46,6 +46,7 @@ QEMU's keymaps, when bundled in `qemu-data/keymaps`, come from a stock QEMU buil
 | Nettle (with Hogweed) | 3.10.2 | LGPL-3.0-or-later or GPL-2.0-or-later | https://www.lysator.liu.se/~nisse/nettle/ |
 | libtasn1 | 4.20.0 | LGPL-2.1-or-later | https://www.gnu.org/software/libtasn1/ |
 | zlib | 1.3.1 | Zlib | https://zlib.net |
+| LZ4 | 1.10.0 | BSD-2-Clause (library) | https://github.com/lz4/lz4 |
 | libyuv (meson subproject, commit in deps.lock) | 7320155784bd | BSD-3-Clause | https://chromium.googlesource.com/libyuv/libyuv |
 | M\*LIB (meson subproject, headers) | 4acdfe4c1204 | BSD-2-Clause | https://github.com/P-p-H-d/mlib |
 | keycodemapdb (build-time keymap generator) | f5772a62ec52 | GPL-2.0-or-later or BSD-3-Clause | https://gitlab.com/qemu-project/keycodemapdb |
