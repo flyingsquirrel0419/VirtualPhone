@@ -49,9 +49,9 @@ struct LibraryView: View {
             }
             .refreshable { model.reload(); model.refreshJIT() }
         }
-        .sheet(isPresented: $creating) { CreateDeviceView() }
-        .sheet(item: $editing) { package in MachineSettingsView(package: package) }
-        .sheet(isPresented: $showDiagnostics) { DiagnosticsView() }
+        .sheet(isPresented: $creating) { CreateDeviceView().environmentObject(model) }
+        .sheet(item: $editing) { package in MachineSettingsView(package: package).environmentObject(model) }
+        .sheet(isPresented: $showDiagnostics) { DiagnosticsView().environmentObject(model) }
         .fullScreenCover(item: $running) { controller in MachineView(controller: controller) }
         .alert("Rename", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
             TextField("Name", text: $renameText)
