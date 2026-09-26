@@ -81,10 +81,13 @@ cp "$BUILD/meson/libqemu-aarch64-softmmu.dylib" "$BUILD/"
 DYLIB="$BUILD/libqemu-aarch64-softmmu.dylib"
 
 # The bridge resolves these by name; a build that lost them is useless.
+# Listed once into a variable: `nm | grep -q` would SIGPIPE nm under pipefail.
+exports="$(nm -gU "$DYLIB" | awk '{print $3}')"
 missing=0
 for sym in qemu_init qemu_main_loop qemu_cleanup inferno_display_attach inferno_display_read \
-           inferno_input_touch inferno_input_function_key qemu_system_shutdown_request; do
-    if ! nm -gU "$DYLIB" | awk '{print $3}' | grep -qx "_$sym"; then
+           inferno_input_touch inferno_input_function_key qemu_system_shutdown_request \
+           qemu_system_vmstop_request qemu_system_vmstop_request_prepare vm_start bql_lock_impl; do
+    if ! grep -qx "_$sym" <<<"$exports"; then
         echo "missing export: $sym" >&2
         missing=1
     fi
