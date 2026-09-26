@@ -166,6 +166,11 @@ struct DeviceCard: View {
                 Text("iPhone 11 · iOS 14.x").font(.subheadline).foregroundStyle(.secondary)
                 Text("\(c.cpuCores) cores · \(formatMB(c.memoryMB)) RAM · \(c.displayPreset.displayName) panel")
                     .font(.caption).foregroundStyle(.secondary)
+                if let when = package.uncleanShutdown {
+                    Label("Not shut down cleanly (\(when.formatted(date: .abbreviated, time: .shortened)))",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption2).foregroundStyle(.orange)
+                }
             }
             Spacer()
             Button(action: onStart) {

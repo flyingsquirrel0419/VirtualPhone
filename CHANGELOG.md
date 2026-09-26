@@ -4,6 +4,16 @@ All notable changes. Versions follow [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+- Serial console (log tailer, console tab with input), boot phase detection with timings, QMP
+  client, first-frame time, guest file status in settings.
+- Real-library test: the bridge drives the pinned Inferno built for Linux (`emulator-host.yml`).
+- Command-line guard: every option/property/device the app passes must exist in the pinned tree.
+- Guest services: network recovery, file transfer over slirp with cksum, IPA inspection
+  (arch, FairPlay, minimum OS) and installation.
+- Per-device qcow2 overlays and state copies (config schema 2), reset, unclean-shutdown warning.
+- App icon (original artwork, `tools/icon/make_icon.py`).
+
 ## [0.1.0] - 2026-09-26
 
 Bootstrap.

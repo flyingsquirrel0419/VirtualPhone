@@ -75,6 +75,26 @@ sed -e "s|__PRODUCT_NAME__|$PRODUCT_NAME|g" \
 plutil -lint "$APP/Info.plist"
 printf 'APPL????' > "$APP/PkgInfo"
 
+echo "==> Icon"
+# actool compiles the catalog into Assets.car and returns the Info.plist keys
+# the icon needs in a partial plist, merged here rather than transcribed.
+if xcrun actool --compile "$APP" --platform iphoneos --minimum-deployment-target "$DEPLOY" \
+        --app-icon AppIcon --output-partial-info-plist "$BUILD/icon.plist" \
+        "$APPSRC/Resources/Assets.xcassets" > "$BUILD/actool.log" 2>&1; then
+    python3 - "$APP/Info.plist" "$BUILD/icon.plist" <<'PY'
+import plistlib, sys
+target, partial = sys.argv[1], sys.argv[2]
+with open(target, "rb") as f: info = plistlib.load(f)
+with open(partial, "rb") as f: extra = plistlib.load(f)
+extra.pop("com.apple.actool.compilation-results", None)
+info.update(extra)
+with open(target, "wb") as f: plistlib.dump(info, f)
+PY
+else
+    echo "    warning: actool failed, building without an icon" >&2
+    cat "$BUILD/actool.log" >&2
+fi
+
 if [ -n "$EMULATOR_DYLIB" ]; then
     cp "$EMULATOR_DYLIB" "$APP/Frameworks/"
 fi

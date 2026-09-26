@@ -55,6 +55,18 @@ final class VMPackageTests: XCTestCase {
         XCTAssertEqual(VMPackage.list(in: root).packages.count, 1)
     }
 
+    func testUncleanShutdownMarker() throws {
+        let pkg = try VMPackage.create(in: root, configuration: MachineConfiguration(name: "M"))
+        XCTAssertNil(pkg.uncleanShutdown)
+        let when = Date(timeIntervalSince1970: 1_800_000_000)
+        pkg.markRunning(at: when)
+        XCTAssertEqual(try VMPackage.open(pkg.url).uncleanShutdown, when)
+        // A clone never inherits a run in progress.
+        XCTAssertNil(try pkg.clone(named: "M2").uncleanShutdown)
+        pkg.markStopped()
+        XCTAssertNil(pkg.uncleanShutdown)
+    }
+
     func testDirectoryNames() {
         XCTAssertEqual(VMPackage.directoryName(for: "a/b:c"), "a-b-c.vphone")
         XCTAssertNil(VMPackage.directoryName(for: ""))

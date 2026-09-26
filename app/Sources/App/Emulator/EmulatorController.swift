@@ -51,6 +51,7 @@ final class EmulatorController: ObservableObject {
 
     func start(arguments: [String]) {
         console.begin()
+        if !isMock { package.markRunning() }
         do {
             try runtime.start(arguments: arguments)
         } catch {
@@ -80,6 +81,7 @@ final class EmulatorController: ObservableObject {
             startPump()
         case .stopped, .failed:
             console.end()
+            if !isMock { package.markStopped() }
             pumpState.running = false
             pump = nil
             metricsTimer?.invalidate()

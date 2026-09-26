@@ -115,6 +115,28 @@ public struct VMPackage: Equatable, Sendable {
         return package
     }
 
+    // MARK: - Clean shutdown tracking
+
+    var runningMarker: URL { url.appendingPathComponent("state/running") }
+
+    /// Written when the machine starts, removed when it stops cleanly. Still
+    /// there at the next launch means the app died with the guest running:
+    /// its disks may hold a half-finished write, and the user should know.
+    public func markRunning(at date: Date = Date()) {
+        try? FileManager.default.createDirectory(at: runningMarker.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(ISO8601DateFormatter().string(from: date).utf8).write(to: runningMarker)
+    }
+
+    public func markStopped() {
+        try? FileManager.default.removeItem(at: runningMarker)
+    }
+
+    /// When the previous run started, if it did not end cleanly.
+    public var uncleanShutdown: Date? {
+        guard let data = try? Data(contentsOf: runningMarker) else { return nil }
+        return ISO8601DateFormatter().date(from: String(decoding: data, as: UTF8.self)) ?? Date.distantPast
+    }
+
     public func delete() throws {
         try FileManager.default.removeItem(at: url)
     }

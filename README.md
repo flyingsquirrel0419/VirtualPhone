@@ -16,8 +16,10 @@ T8030 (A13) machine — iBoot, XNU, launchd, SpringBoard — through
 |---|---|
 | App launches, VM manager, mock runtime | built in CI; physical-device test **not run** |
 | Inferno library built and bundled | built in CI |
-| Guest boot / SpringBoard | not yet verified by this project (v0.2–v0.3) |
-| Touch, buttons, networking, file transfer, IPA install | planned (v0.4–v0.7) |
+| Console, boot phases, QMP; bridge driven against the real Inferno library on Linux | done; phone test **not run** |
+| Guest boot / SpringBoard on a phone | not yet verified (needs your guest image) |
+| Touch (single contact), buttons, network recovery, file transfer, IPA install | implemented; phone test **not run** |
+| Per-device qcow2 overlays (base image never written), reset, clone | implemented; phone test **not run** |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) and [CHANGELOG.md](CHANGELOG.md).
 
@@ -59,14 +61,20 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) and [CHANGELOG.md](CHANGELOG.md).
    overlay.
 
 One machine per app launch: QEMU cannot be started twice in one process, so relaunch the app to
-boot again. Installing IPAs into the guest arrives in v0.7.
+boot again.
+
+The **Console** tab shows the guest's serial console with boot phases (iBoot → kernel → launchd →
+shell) and lets you type into it. Once the bootstrap's shell is up, the menu offers **Reconnect
+Guest Network**, **Send File to Guest…** and **Install IPA…** (checked first: FairPlay-encrypted,
+non-arm64 or too-new apps are refused with the reason). New devices boot from their own qcow2
+overlay, so your prepared image is never written; *Reset Device State* returns a device to it.
 
 ## Known limitations
 
 JIT required · slow boot (minutes) · high RAM use, iOS caps the app near 3 GB · iPhone 11/T8030
 only · limited guest iOS versions (14.x) · audio experimental and off by default · no camera,
 cellular or Bluetooth · FairPlay-encrypted App Store apps do not run · not every IPA is
-compatible · network can drop and needs recovery · one boot per app launch · no app icon yet.
+compatible · network can drop and needs recovery · one boot per app launch · one touch contact at a time (no pinch yet).
 
 **Performance expectations:** everything is translated (no hypervisor on iOS). Upstream measured
 8–11 fps with a 64 MB translation cache and 21–25 fps with 256 MB on a phone. VirtualPhone's own
