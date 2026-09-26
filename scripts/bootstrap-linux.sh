@@ -18,7 +18,7 @@ fi
 
 python3 --version
 shellcheck --version | sed -n 2p
-if command -v swift >/dev/null 2>&1; then swift --version 2>&1 | head -1
+if command -v swift >/dev/null 2>&1; then swift --version 2>&1 | sed -n 1p
 else echo "swift: not installed (optional; see https://www.swift.org/install/linux/)"; fi
 gh auth status >/dev/null 2>&1 && echo "gh: authenticated" || echo "gh: NOT authenticated (gh auth login)"
 

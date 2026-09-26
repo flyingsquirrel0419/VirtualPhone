@@ -34,7 +34,7 @@ SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 
 echo "==> $PRODUCT_NAME $VERSION ($BUILD_NUMBER) ${COMMIT:0:12} [$CHANNEL]"
 echo "    SDK $SDK"
-xcrun --sdk iphoneos swiftc --version | head -1
+xcrun --sdk iphoneos swiftc --version | sed -n 1p
 
 if [ ! -f "$EMULATOR_DYLIB" ]; then
     if [ "$REQUIRE_EMULATOR" = 1 ]; then

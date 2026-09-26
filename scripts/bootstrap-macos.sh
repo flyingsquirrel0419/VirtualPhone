@@ -17,7 +17,7 @@ elif [ -n "${CI:-}" ]; then
 else
     echo "warning: $XCODE_PATH not found; using $(xcode-select -p)" >&2
 fi
-have="$(xcodebuild -version | head -1 | awk '{print $2}')"
+have="$(xcodebuild -version | awk 'NR==1 {print $2}')"
 echo "Xcode $have (pinned $XCODE_WANT) at $(xcode-select -p)"
 if [ -n "${CI:-}" ] && [ "$have" != "$XCODE_WANT" ] && [ "${ALLOW_XCODE_MISMATCH:-0}" != 1 ]; then
     echo "Xcode version mismatch" >&2
