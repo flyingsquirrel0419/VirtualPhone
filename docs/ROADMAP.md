@@ -12,7 +12,8 @@ results that need a phone are recorded as NOT RUN until someone runs them.
 - [x] SwiftUI shell: device library, create/clone/rename/delete/settings/export, running screen,
       buttons, debug overlay, diagnostics export, JIT detection, mock runtime
 - [x] Linux CI, macOS iOS build, release, nightly, dependency-check workflows
-- [ ] CI builds the Inferno dylib and an IPA artifact on the pinned runner  ← verified by the first CI run
+- [x] CI builds the Inferno dylib and an IPA artifact on the pinned runner (run 36224154220,
+      commit ef5424b: `VirtualPhone-<sha>.ipa`, 4.3 MB, emulator 12.3 MB, arm64, ad-hoc signed)
 - [ ] Physical device: app launches, JIT detected, mock runtime renders (NOT RUN)
 
 ## v0.2 — T8030 boot pipeline

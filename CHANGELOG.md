@@ -20,6 +20,8 @@ Bootstrap.
   Home/Side/Vol± and debug overlay, JIT status, diagnostics with export, mock runtime.
 - CI: Linux CI, macOS iOS build (pinned macOS 26 / Xcode 26.6), release, nightly, dependency check;
   forbidden-file and secret scanner, IPA verifier, SBOM.
+- Emulator patch 0001 pins the fork's libyuv and mlib meson subprojects to commits; LZ4 1.10.0
+  added to the dependencies; libyuv's CMake build configured for iOS.
 
 ### Known issues
 - Guest boot not yet verified on a physical device; physical-device tests NOT RUN.

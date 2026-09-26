@@ -7,7 +7,7 @@
 | Host OS | iOS / iPadOS 16.0+ | deployment target |
 | Host hardware | arm64 iPhone/iPad | more RAM helps; iOS caps an app near 3 GB |
 | Accelerator | TCG (multi-threaded) + JIT | no hypervisor for apps on iOS |
-| Build | macOS 26 runner, Xcode 26.6, iOS SDK 26.x | pinned in deps.lock; Xcode 27 preview checked nightly |
+| Build | `macos-26-arm64` image 20260907 (macOS 26.6.2), Xcode 26.6, iOS SDK 26.5, Swift 6.3.3 | pinned in deps.lock; Xcode 27 preview checked nightly |
 
 ## Physical device results
 

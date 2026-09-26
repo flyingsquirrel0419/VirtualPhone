@@ -49,6 +49,15 @@ an Actions artifact. Guest boot is not part of v0.1.
 | dylib link: `_libucontext_*` undefined — clang++ links (libyuv is C++) and `cpp_link_args` lacked `-lucontext` | macOS CI (linker) | C++ link args mirror the C ones; clean retry only after a cache hit |
 | meson: `Dependency "liblz4" not found` (hw/usb, fork 2026-09-18) | macOS CI (dependency) | LZ4 1.10.0 added to deps.lock and the dependency build; all `required: true` deps of the fork audited — none other missing |
 
+## Result
+
+First green iOS Build: run 36224154220 on commit `ef5424b`. Linux gate (4 jobs) green; macOS:
+dependency prefix from cache (built from checksummed tarballs in an earlier run), emulator built
+from scratch (cache miss, 1044 ninja steps), app compiled, IPA verified and scanned in CI and
+again on Linux after download (`sha256sum -c`, `verify_ipa.py --require-emulator
+--require-signature`, `forbidden_scan.py archive`, all 18 bridge symbols exported).
+Environment: `macos-26-arm64` 20260907, Xcode 26.6, iOS SDK 26.5, Swift 6.3.3.
+
 ## Remaining issues
 
 - Guest boot untested (v0.2). The argv follows Inferno-iOS; our own boot verification is next.
