@@ -17,7 +17,7 @@ final class GuestShellSession: GuestTransport {
         return phase >= .shell && phase != .panicked
     }
 
-    func run(_ command: String, timeout: TimeInterval = 120) -> ShellFrame.Result? {
+    func execute(_ command: String, timeout: TimeInterval) -> TransportOutcome {
         lock.lock()
         defer { lock.unlock() }
         let frame = ShellFrame()
@@ -36,13 +36,13 @@ final class GuestShellSession: GuestTransport {
         sent.wait()
         if let sendError {
             AppLogger.shared.log(.guest, sendError, level: .error)
-            return nil
+            return .unavailable
         }
-        guard done.wait(timeout: .now() + timeout) == .success else {
+        guard done.wait(timeout: .now() + timeout) == .success, let result else {
             AppLogger.shared.log(.guest, "Command timed out after \(Int(timeout)) s: \(command.prefix(80))", level: .warning)
-            return nil
+            return .timedOut
         }
-        return result
+        return .result(result)
     }
 }
 
@@ -62,19 +62,35 @@ final class GuestServices: ObservableObject {
     private let console: GuestConsole
     private let consoleShell: GuestShellSession
     private var networkShell: NetworkShellTransport?
-    private let networkUp: () -> Bool
+    /// After a callback that never came, do not type another for a while.
+    private var networkShellRetryAfter = Date.distantPast
+    private let linkLock = NSLock()
+    private var linkUp = false
     private let worker = DispatchQueue(label: "virtualphone.guest")
 
-    init(console: GuestConsole, networkUp: @escaping () -> Bool) {
+    init(console: GuestConsole) {
         self.console = console
         self.consoleShell = GuestShellSession(console: console)
-        self.networkUp = networkUp
+    }
+
+    /// From the controller's metrics timer (main thread); read by workers.
+    func setNetworkLinkUp(_ up: Bool) {
+        linkLock.lock()
+        linkUp = up
+        linkLock.unlock()
+    }
+
+    private func networkUp() -> Bool {
+        linkLock.lock()
+        defer { linkLock.unlock() }
+        return linkUp
     }
 
     /// The network shell when it can be had, the console otherwise. On a worker thread.
     private var shell: GuestTransport {
-        if networkShell?.isConnected != true, networkUp() {
+        if networkShell?.isConnected != true, networkUp(), Date() >= networkShellRetryAfter {
             networkShell = connectNetworkShell()
+            if networkShell == nil { networkShellRetryAfter = Date() + 300 }
         }
         let candidates: [GuestTransport?] = [networkShell, consoleShell]
         return FallbackTransport(candidates.compactMap { $0 })
@@ -203,10 +219,10 @@ final class GuestServices: ObservableObject {
 
     func sendFile(_ url: URL, toDirectory directory: String = "/var/mobile/Documents") {
         guard begin("Send \(url.lastPathComponent) to the guest") else { return }
-        let offline = requireShell(), networkUp = networkUp()
+        let offline = requireShell(), linkIsUp = networkUp()
         worker.async { [self] in
             if let offline { return finish(.failed(offline)) }
-            if !networkUp { return finish(.failed("The guest network is down. Use Reconnect Guest Network first.")) }
+            if !linkIsUp { return finish(.failed("The guest network is down. Use Reconnect Guest Network first.")) }
             let accessing = url.startAccessingSecurityScopedResource()
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
             do {
@@ -222,30 +238,36 @@ final class GuestServices: ObservableObject {
     /// Copies `guestPath` out of the guest into Documents/FromGuest.
     func fetchFile(_ guestPath: String) {
         guard begin("Fetch \((guestPath as NSString).lastPathComponent) from the guest") else { return }
-        let offline = requireShell(), networkUp = networkUp()
+        let offline = requireShell(), linkIsUp = networkUp()
         worker.async { [self] in
             if let offline { return finish(.failed(offline)) }
-            if !networkUp { return finish(.failed("The guest network is down. Use Reconnect Guest Network first.")) }
+            if !linkIsUp { return finish(.failed("The guest network is down. Use Reconnect Guest Network first.")) }
             do {
                 let folder = AppModel.documents.appendingPathComponent("FromGuest", isDirectory: true)
                 try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
                 let target = folder.appendingPathComponent((guestPath as NSString).lastPathComponent)
+                // Received beside the target and moved in only when complete, so a
+                // failed fetch never damages a file of the same name.
+                let partial = folder.appendingPathComponent(".\(target.lastPathComponent).partial")
+                defer { try? FileManager.default.removeItem(at: partial) }
                 let server = try FileTransferServer()
                 var received: Result<(crc: UInt32, length: Int64), Error>?
                 let done = DispatchSemaphore(value: 0)
                 DispatchQueue.global(qos: .userInitiated).async {
-                    received = Result { try server.receive(to: target, timeout: 90) }
+                    received = Result { try server.receive(to: partial, timeout: 90) }
                     done.signal()
                 }
                 let r = shell.run(GuestCommand.sendFile(guestPath, port: server.port), timeout: 900)
+                server.close() // stops a wait for a guest that never connects
                 done.wait()
-                server.close()
                 guard let r else { throw GuestError("No answer from the guest shell.") }
                 if let why = GuestCommand.diagnose(r.output) { throw GuestError(why) }
                 guard r.status == 0 else { throw GuestError("Sending from the guest failed with status \(r.status).") }
                 guard case .success(let got)? = received,
                       let sum = r.output.compactMap(PosixCksum.parse).last, sum.crc == got.crc, sum.length == got.length
                 else { throw GuestError("The file arrived incomplete or its checksum does not match.") }
+                _ = try? FileManager.default.removeItem(at: target)
+                try FileManager.default.moveItem(at: partial, to: target)
                 finish(.succeeded("Saved to Files → VirtualPhone → FromGuest → \(target.lastPathComponent)."))
             } catch {
                 finish(.failed(error.localizedDescription))
@@ -257,7 +279,7 @@ final class GuestServices: ObservableObject {
 
     func installIPA(_ url: URL) {
         guard begin("Install \(url.lastPathComponent)") else { return }
-        let offline = requireShell(), networkUp = networkUp()
+        let offline = requireShell(), linkIsUp = networkUp()
         worker.async { [self] in
             let accessing = url.startAccessingSecurityScopedResource()
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
@@ -266,7 +288,7 @@ final class GuestServices: ObservableObject {
             if !report.isInstallable { return finish(.failed(report.problems.map(\.message).joined(separator: "\n"))) }
             note("\(report.name) \(report.version) (\(report.bundleID)), \(report.architectures.joined(separator: ", ")), iOS \(report.minimumOS)+")
             if let offline { return finish(.failed(offline)) }
-            if !networkUp { return finish(.failed("The guest network is down. Use Reconnect Guest Network first.")) }
+            if !linkIsUp { return finish(.failed("The guest network is down. Use Reconnect Guest Network first.")) }
 
             let staging = FileManager.default.temporaryDirectory.appendingPathComponent("vp-install-\(UUID().uuidString).tar")
             defer { try? FileManager.default.removeItem(at: staging) }

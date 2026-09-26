@@ -7,6 +7,12 @@ struct ConsoleView: View {
     @State private var input = ""
     @State private var follow = true
     @State private var sendError: String?
+    @State private var exported: ExportedFile?
+
+    struct ExportedFile: Identifiable {
+        let url: URL
+        var id: URL { url }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -39,12 +45,23 @@ struct ConsoleView: View {
                     .autocorrectionDisabled()
                     .onSubmit(send)
                 Toggle("Follow", isOn: $follow).toggleStyle(.button).font(.caption)
-                ShareLink(item: console.exportText()) { Image(systemName: "square.and.arrow.up") }
+                Button {
+                    console.export { url in exported = url.map(ExportedFile.init) }
+                } label: { Image(systemName: "square.and.arrow.up") }
             }
             .padding(8)
             .background(.ultraThinMaterial)
         }
         .background(Color.black)
+        .sheet(item: $exported) { file in
+            VStack(spacing: 16) {
+                Text("Guest console").font(.headline)
+                ShareLink(item: file.url) { Label("Share guest-console.txt", systemImage: "square.and.arrow.up") }
+                    .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .presentationDetents([.fraction(0.25)])
+        }
     }
 
     private var phaseStrip: some View {

@@ -41,6 +41,8 @@ final class GuestConsole: ObservableObject {
     func begin() {
         let now = Date()
         startedAt = now
+        firstFrameAfter = nil
+        timer?.cancel()
         queue.sync {
             try? FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             tailer.reset(at: now)
@@ -137,8 +139,12 @@ final class GuestConsole: ObservableObject {
         }
     }
 
-    /// The whole console for export.
-    func exportText() -> String {
-        queue.sync { tailer.buffer.text }
+    /// Writes the whole console to a file off the main thread, then hands its URL back on main.
+    func export(_ completion: @escaping (URL?) -> Void) {
+        queue.async {
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent("guest-console.txt")
+            let ok = (try? self.tailer.buffer.text.write(to: url, atomically: true, encoding: .utf8)) != nil
+            DispatchQueue.main.async { completion(ok ? url : nil) }
+        }
     }
 }

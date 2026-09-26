@@ -48,7 +48,16 @@ final class InfernoRuntime: EmulatorRuntime {
         return _state
     }
 
-    private func bridgeStateChanged(_ raw: vp_state, detail: Int32) {
+    private func bridgeStateChanged(_ reported: vp_state, detail: Int32) {
+        // Callbacks from different threads can arrive out of order; the
+        // bridge's current state is the truth.
+        let raw = vp_emulator_state(handle)
+        var detail = detail
+        if raw == VP_STATE_STOPPED, reported != VP_STATE_STOPPED {
+            var m = vp_metrics()
+            vp_emulator_get_metrics(handle, &m)
+            detail = m.exit_status
+        }
         let new: RuntimeState
         switch raw {
         case VP_STATE_IDLE: new = .idle

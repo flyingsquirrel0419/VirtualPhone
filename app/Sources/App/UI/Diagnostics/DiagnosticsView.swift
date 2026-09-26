@@ -42,6 +42,8 @@ enum HostInfo {
             if kr == KERN_SUCCESS, info.flags & TH_FLAGS_IDLE == 0 {
                 total += Double(info.cpu_usage) / Double(TH_USAGE_SCALE) * 100
             }
+            // task_threads hands out a send right per thread; give each back.
+            mach_port_deallocate(mach_task_self_, threads[i])
         }
         return total
     }

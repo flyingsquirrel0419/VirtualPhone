@@ -53,7 +53,12 @@ struct vp_emulator {
     uint32_t caps;
 
     pthread_mutex_t lock;
+    /* Serialises pause/resume/reset/stop and the final STOPPED publication.
+     * Lock order: control, then the BQL, then lock. */
+    pthread_mutex_t control;
     pthread_cond_t done_cond;
+    /* Set with the BQL held as soon as the main loop returns. */
+    atomic_bool loop_exited;
     vp_state state;
     int32_t exit_status;
     bool thread_started;
@@ -94,6 +99,11 @@ static void transition(vp_emulator *emu, vp_state state, int32_t detail)
     void *ctx;
 
     pthread_mutex_lock(&emu->lock);
+    /* STOPPED and FAILED are final: nothing may move a machine out of them. */
+    if (emu->state == VP_STATE_STOPPED || emu->state == VP_STATE_FAILED) {
+        pthread_mutex_unlock(&emu->lock);
+        return;
+    }
     emu->state = state;
     if (state == VP_STATE_RUNNING && !emu->has_started) {
         clock_gettime(CLOCK_MONOTONIC, &emu->started_at);
@@ -103,6 +113,19 @@ static void transition(vp_emulator *emu, vp_state state, int32_t detail)
     ctx = emu->callback_context;
     pthread_mutex_unlock(&emu->lock);
 
+    if (cb)
+        cb(ctx, state, detail);
+}
+
+/* Fires the callback for a state set while holding the lock. */
+static void notify(vp_emulator *emu, vp_state state, int32_t detail)
+{
+    vp_state_callback cb;
+    void *ctx;
+    pthread_mutex_lock(&emu->lock);
+    cb = emu->callback;
+    ctx = emu->callback_context;
+    pthread_mutex_unlock(&emu->lock);
     if (cb)
         cb(ctx, state, detail);
 }
@@ -188,6 +211,7 @@ vp_emulator *vp_emulator_create(const char *library_path, char *error, size_t er
     }
     emu->handle = handle;
     pthread_mutex_init(&emu->lock, NULL);
+    pthread_mutex_init(&emu->control, NULL);
     pthread_cond_init(&emu->done_cond, NULL);
     resolve_symbols(emu);
 
@@ -198,6 +222,7 @@ vp_emulator *vp_emulator_create(const char *library_path, char *error, size_t er
                      "(was it built with -Dshared_lib=true?)",
                      library_path);
         pthread_cond_destroy(&emu->done_cond);
+        pthread_mutex_destroy(&emu->control);
         pthread_mutex_destroy(&emu->lock);
         free(emu);
         return NULL;
@@ -228,6 +253,7 @@ int vp_emulator_destroy(vp_emulator *emu)
         free(emu->argv);
     }
     pthread_cond_destroy(&emu->done_cond);
+    pthread_mutex_destroy(&emu->control);
     pthread_mutex_destroy(&emu->lock);
     free(emu);
     return VP_OK;
@@ -261,6 +287,7 @@ static void *emulator_thread(void *arg)
 
     transition(emu, VP_STATE_RUNNING, 0);
     status = emu->qemu_main_loop();
+    atomic_store(&emu->loop_exited, true); /* still holding the BQL */
     emu->qemu_cleanup(status);
 
     /* A thread that ends holding the BQL leaves it held for good, and exit
@@ -272,12 +299,14 @@ static void *emulator_thread(void *arg)
      * any destroy after it) sees it; the callback runs next; `done` last, so
      * wait returns only once the callback has been delivered. destroy joins
      * this thread, so nothing is freed underneath the callback. */
+    pthread_mutex_lock(&emu->control);
     pthread_mutex_lock(&emu->lock);
     emu->exit_status = status;
     emu->state = VP_STATE_STOPPED;
     cb = emu->callback;
     ctx = emu->callback_context;
     pthread_mutex_unlock(&emu->lock);
+    pthread_mutex_unlock(&emu->control);
 
     if (cb)
         cb(ctx, VP_STATE_STOPPED, status);
@@ -310,17 +339,19 @@ int vp_emulator_start(vp_emulator *emu, int argc, const char *const *argv)
         return VP_ERR_SPENT;
     }
 
+    /* Until the thread runs, QEMU has not been touched: a failure here gives
+     * the process back its one start. */
     emu->argv = calloc((size_t)argc + 1, sizeof(char *));
     if (!emu->argv) {
+        atomic_store(&g_spent, false);
         set_error(emu, "out of memory");
-        transition(emu, VP_STATE_FAILED, VP_ERR_SYSTEM);
         return VP_ERR_SYSTEM;
     }
     for (int i = 0; i < argc; i++) {
         emu->argv[i] = strdup(argv[i]);
         if (!emu->argv[i]) {
+            atomic_store(&g_spent, false);
             set_error(emu, "out of memory");
-            transition(emu, VP_STATE_FAILED, VP_ERR_SYSTEM);
             return VP_ERR_SYSTEM;
         }
     }
@@ -333,8 +364,12 @@ int vp_emulator_start(vp_emulator *emu, int argc, const char *const *argv)
     rc = pthread_create(&emu->thread, &attr, emulator_thread, emu);
     pthread_attr_destroy(&attr);
     if (rc != 0) {
+        atomic_store(&g_spent, false);
         set_error(emu, "pthread_create: %s", strerror(rc));
-        transition(emu, VP_STATE_FAILED, VP_ERR_SYSTEM);
+        pthread_mutex_lock(&emu->lock);
+        emu->state = VP_STATE_IDLE;
+        pthread_mutex_unlock(&emu->lock);
+        notify(emu, VP_STATE_IDLE, VP_ERR_SYSTEM);
         return VP_ERR_SYSTEM;
     }
     pthread_mutex_lock(&emu->lock);
@@ -343,37 +378,74 @@ int vp_emulator_start(vp_emulator *emu, int argc, const char *const *argv)
     return VP_OK;
 }
 
+/*
+ * Pause, resume, reset and stop hold `control` from their state check to the
+ * state change, and the emulator thread takes it before publishing STOPPED,
+ * so no request can interleave with the machine ending. Lock order is
+ * control → BQL → lock everywhere (the emulator thread takes `lock` with the
+ * BQL held right after qemu_init).
+ */
+static vp_state locked_state(vp_emulator *emu)
+{
+    return current(emu);
+}
+
+static void set_state(vp_emulator *emu, vp_state state)
+{
+    pthread_mutex_lock(&emu->lock);
+    emu->state = state;
+    pthread_mutex_unlock(&emu->lock);
+}
+
+static int refuse(vp_emulator *emu, const char *what, vp_state s)
+{
+    pthread_mutex_unlock(&emu->control);
+    set_error(emu, "%s: machine is %s", what, vp_state_name(s));
+    return VP_ERR_STATE;
+}
+
 int vp_emulator_pause(vp_emulator *emu)
 {
+    vp_state s;
     if (!emu)
         return VP_ERR_INVALID;
     if (!(emu->caps & VP_CAP_PAUSE))
         return VP_ERR_UNSUPPORTED;
-    if (current(emu) != VP_STATE_RUNNING) {
-        set_error(emu, "pause: machine is %s", vp_state_name(current(emu)));
-        return VP_ERR_STATE;
-    }
+    pthread_mutex_lock(&emu->control);
+    s = locked_state(emu);
+    if (s != VP_STATE_RUNNING || atomic_load(&emu->loop_exited))
+        return refuse(emu, "pause", s);
     /* The vmstop request is QEMU's own cross-thread path (vCPUs use it). */
     emu->vmstop_prepare();
     emu->vmstop_request(RUN_STATE_PAUSED);
-    transition(emu, VP_STATE_PAUSED, 0);
+    set_state(emu, VP_STATE_PAUSED);
+    pthread_mutex_unlock(&emu->control);
+    notify(emu, VP_STATE_PAUSED, 0);
     return VP_OK;
 }
 
 int vp_emulator_resume(vp_emulator *emu)
 {
+    vp_state s;
     if (!emu)
         return VP_ERR_INVALID;
     if (!(emu->caps & VP_CAP_PAUSE))
         return VP_ERR_UNSUPPORTED;
-    if (current(emu) != VP_STATE_PAUSED) {
-        set_error(emu, "resume: machine is %s", vp_state_name(current(emu)));
-        return VP_ERR_STATE;
-    }
+    pthread_mutex_lock(&emu->control);
+    s = locked_state(emu);
+    if (s != VP_STATE_PAUSED)
+        return refuse(emu, "resume", s);
     emu->bql_lock(__FILE__, __LINE__);
+    /* Checked under the BQL: the loop may have ended while we waited for it. */
+    if (atomic_load(&emu->loop_exited)) {
+        emu->bql_unlock();
+        return refuse(emu, "resume", VP_STATE_STOPPING);
+    }
     emu->vm_start();
     emu->bql_unlock();
-    transition(emu, VP_STATE_RUNNING, 0);
+    set_state(emu, VP_STATE_RUNNING);
+    pthread_mutex_unlock(&emu->control);
+    notify(emu, VP_STATE_RUNNING, 0);
     return VP_OK;
 }
 
@@ -384,12 +456,12 @@ int vp_emulator_reset(vp_emulator *emu)
         return VP_ERR_INVALID;
     if (!(emu->caps & VP_CAP_RESET))
         return VP_ERR_UNSUPPORTED;
-    s = current(emu);
-    if (s != VP_STATE_RUNNING && s != VP_STATE_PAUSED) {
-        set_error(emu, "reset: machine is %s", vp_state_name(s));
-        return VP_ERR_STATE;
-    }
+    pthread_mutex_lock(&emu->control);
+    s = locked_state(emu);
+    if ((s != VP_STATE_RUNNING && s != VP_STATE_PAUSED) || atomic_load(&emu->loop_exited))
+        return refuse(emu, "reset", s);
     emu->reset_request(SHUTDOWN_CAUSE_HOST_UI);
+    pthread_mutex_unlock(&emu->control);
     return VP_OK;
 }
 
@@ -400,15 +472,18 @@ int vp_emulator_stop(vp_emulator *emu)
         return VP_ERR_INVALID;
     if (!(emu->caps & VP_CAP_STOP))
         return VP_ERR_UNSUPPORTED;
-    s = current(emu);
-    if (s == VP_STATE_STOPPING || s == VP_STATE_STOPPED)
+    pthread_mutex_lock(&emu->control);
+    s = locked_state(emu);
+    if (s == VP_STATE_STOPPING || s == VP_STATE_STOPPED) {
+        pthread_mutex_unlock(&emu->control);
         return VP_OK;
-    if (s != VP_STATE_RUNNING && s != VP_STATE_PAUSED) {
-        set_error(emu, "stop: machine is %s", vp_state_name(s));
-        return VP_ERR_STATE;
     }
-    transition(emu, VP_STATE_STOPPING, 0);
+    if (s != VP_STATE_RUNNING && s != VP_STATE_PAUSED)
+        return refuse(emu, "stop", s);
+    set_state(emu, VP_STATE_STOPPING);
     emu->shutdown_request(SHUTDOWN_CAUSE_HOST_UI);
+    pthread_mutex_unlock(&emu->control);
+    notify(emu, VP_STATE_STOPPING, 0);
     return VP_OK;
 }
 
@@ -579,7 +654,14 @@ uint32_t vp_emulator_capabilities(const vp_emulator *emu)
 
 const char *vp_emulator_last_error(vp_emulator *emu)
 {
-    return emu ? emu->error : "no emulator";
+    /* A per-thread copy: set_error may rewrite emu->error concurrently. */
+    static _Thread_local char copy[sizeof(((vp_emulator *)0)->error)];
+    if (!emu)
+        return "no emulator";
+    pthread_mutex_lock(&emu->lock);
+    memcpy(copy, emu->error, sizeof copy);
+    pthread_mutex_unlock(&emu->lock);
+    return copy;
 }
 
 const char *vp_state_name(vp_state state)

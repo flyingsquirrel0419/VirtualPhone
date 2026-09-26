@@ -48,4 +48,18 @@ final class GuestTransportTests: XCTestCase {
         XCTAssertEqual(both.lastUsed, "network")
         XCTAssertNil(FallbackTransport([dead]).run("true", timeout: 1))
     }
+
+    /// A command that timed out may still be running: it must not be retyped elsewhere.
+    func testTimeoutDoesNotFallBack() throws {
+        let slow = try NetworkShellTransport(), spare = try NetworkShellTransport()
+        let a = try startBash(connectingTo: slow.port), b = try startBash(connectingTo: spare.port)
+        defer { a.terminate(); b.terminate() }
+        try slow.accept(timeout: 5)
+        try spare.accept(timeout: 5)
+        let both = FallbackTransport([slow, spare])
+        XCTAssertEqual(both.execute("sleep 2", timeout: 0.3), .timedOut)
+        XCTAssertEqual(both.lastUsed, "network")
+        XCTAssertEqual(spare.run("echo untouched", timeout: 5)?.output, ["untouched"])
+        XCTAssertEqual(try NetworkShellTransport().execute("true", timeout: 1), .unavailable)
+    }
 }

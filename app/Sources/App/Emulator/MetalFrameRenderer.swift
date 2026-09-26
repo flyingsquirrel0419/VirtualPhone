@@ -16,6 +16,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private var textures: [MTLTexture] = []
     private var newest = -1
     private var writing = 0
+    /// The texture an in-flight command buffer samples, or -1.
+    private var drawing = -1
     private(set) var size = (width: 0, height: 0)
     weak var view: MTKView?
 
@@ -64,8 +66,8 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             newest = -1
         }
         guard textures.count == 3 else { lock.unlock(); return }
-        // Never the one being shown: rotate past `newest`.
-        writing = (newest + 1) % 3
+        // Neither the newest (about to be shown) nor the one on the GPU now.
+        writing = (0..<3).first { $0 != newest && $0 != drawing } ?? (newest + 1) % 3
         let texture = textures[writing]
         lock.unlock()
 
@@ -82,8 +84,10 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
 
     func draw(in view: MTKView) {
         lock.lock()
-        let texture = newest >= 0 ? textures[newest] : nil
+        let index = newest
+        let texture = index >= 0 ? textures[index] : nil
         let frame = size
+        drawing = index
         lock.unlock()
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
               let buffer = queue.makeCommandBuffer(),
@@ -100,6 +104,12 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
             encoder.drawPrimitives(type: .triangleStrip, vertexStart: 0, vertexCount: 4)
         }
         encoder.endEncoding()
+        buffer.addCompletedHandler { [weak self] _ in
+            guard let self else { return }
+            self.lock.lock()
+            if self.drawing == index { self.drawing = -1 }
+            self.lock.unlock()
+        }
         buffer.present(drawable)
         buffer.commit()
     }

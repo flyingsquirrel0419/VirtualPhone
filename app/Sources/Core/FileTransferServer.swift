@@ -19,7 +19,9 @@ public final class FileTransferServer {
     }
 
     public let port: UInt16
-    private var fd: Int32
+    private let fd: Int32
+    private let stateLock = NSLock()
+    private var cancelled = false
 
     /// Listens on 127.0.0.1; `port` 0 picks a free one.
     public init(port: UInt16 = 0) throws {
@@ -49,15 +51,30 @@ public final class FileTransferServer {
         self.port = UInt16(bigEndian: actual.sin_port)
     }
 
-    deinit { close() }
+    deinit { _ = SystemCall.close(fd) }
 
+    /// Stops waiting for a peer: a pending accept returns `.timeout` within
+    /// 0.2 s. Safe from any thread; the socket itself is closed on deinit, never
+    /// under a poll running on another thread.
     public func close() {
-        if fd >= 0 { _ = SystemCall.close(fd); fd = -1 }
+        stateLock.lock()
+        cancelled = true
+        stateLock.unlock()
+    }
+
+    private var isCancelled: Bool {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return cancelled
     }
 
     private func acceptOne(timeout: TimeInterval) throws -> Int32 {
-        var p = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
-        guard poll(&p, 1, Int32(timeout * 1000)) > 0 else { throw Failure.timeout }
+        let deadline = Date() + timeout
+        while true {
+            if isCancelled || Date() >= deadline { throw Failure.timeout }
+            var p = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+            if poll(&p, 1, 200) > 0 { break }
+        }
         let conn = accept(fd, nil, nil)
         guard conn >= 0 else { throw Failure.io(errno) }
         TCPConnection.setTimeouts(conn, 120)
@@ -71,7 +88,9 @@ public final class FileTransferServer {
         guard let file = try? FileHandle(forReadingFrom: url) else { throw Failure.io(ENOENT) }
         defer { try? file.close() }
         var sum = PosixCksum()
-        while let chunk = try? file.read(upToCount: 256 * 1024), !chunk.isEmpty {
+        // A read error propagates: treating it as EOF would send a short file
+        // whose checksum both ends would then agree on.
+        while let chunk = try file.read(upToCount: 256 * 1024), !chunk.isEmpty {
             let bytes = [UInt8](chunk)
             var sent = 0
             while sent < bytes.count {
@@ -99,7 +118,8 @@ public final class FileTransferServer {
             if n == 0 { break }
             if n < 0 { if errno == EINTR { continue }; throw Failure.io(errno) }
             let chunk = Array(buf[0..<n])
-            file.write(Data(chunk))
+            // The throwing write: the old one raises an uncatchable exception on a full disk.
+            try file.write(contentsOf: Data(chunk))
             sum.update(chunk)
             progress?(sum.length)
         }

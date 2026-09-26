@@ -38,9 +38,10 @@ public final class ConsoleLogTailer {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return Update(lines: [], transitions: []) }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0
-        if size < offset { // truncated behind our back
+        if size < offset { // emptied behind our back: a new boot
             offset = 0
             buffer.clear()
+            detector.start(at: date)
         }
         guard size > offset else { return Update(lines: [], transitions: []) }
         try? handle.seek(toOffset: offset)

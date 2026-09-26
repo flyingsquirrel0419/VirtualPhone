@@ -39,7 +39,7 @@ final class EmulatorController: ObservableObject {
         self.console = GuestConsole(logURL: EmulatorController.consoleLogURL(for: package))
         self.metal = RendererKind.preferred == .metal ? MetalFrameRenderer() : nil
         AppLogger.shared.log(.display, "Renderer: \(metal != nil ? "Metal" : "Core Graphics")")
-        self.services = GuestServices(console: console, networkUp: { [weak self] in self?.metrics.netLinkUp ?? false })
+        self.services = GuestServices(console: console)
         runtime.onStateChange = { [weak self] new in
             DispatchQueue.main.async { self?.stateChanged(new) }
         }
@@ -64,8 +64,8 @@ final class EmulatorController: ObservableObject {
         do {
             try runtime.start(arguments: arguments)
         } catch {
-            lastError = error.localizedDescription
-            state = .failed(error.localizedDescription)
+            // Undo begin/markRunning/battery through the same path as any failure.
+            stateChanged(.failed(error.localizedDescription))
         }
     }
 
@@ -150,6 +150,7 @@ final class EmulatorController: ObservableObject {
         metricsTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             guard let self else { return }
             self.metrics = self.runtime.metrics()
+            self.services.setNetworkLinkUp(self.metrics.netLinkUp)
             if !self.isMock, Int(self.metrics.uptimeMS / 1000) % 5 == 0 { self.console.refreshQMPStatus() }
             self.hostCPU = HostInfo.cpuPercent
             if !self.isMock, self.state == .running { self.services.upkeep(networkEnabled: self.package.configuration.network) }

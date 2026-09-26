@@ -65,11 +65,26 @@ public enum DeviceSnapshots {
         try? fm.removeItem(at: newNVRAM)
         try fm.copyItem(at: dir.appendingPathComponent("root.qcow2"), to: newRoot)
         try fm.copyItem(at: dir.appendingPathComponent("nvram"), to: newNVRAM)
-        // The overlay goes last: DeviceState.exists() keys on it.
-        try? fm.removeItem(at: DeviceState.overlayURL(in: package))
-        try? fm.removeItem(at: nvram)
-        try fm.moveItem(at: newNVRAM, to: nvram)
-        try fm.moveItem(at: newRoot, to: DeviceState.overlayURL(in: package))
+        // Move the current state aside, swap the copies in, and only then drop
+        // the old one; a failed move puts the old state back.
+        let overlay = DeviceState.overlayURL(in: package)
+        let oldRoot = disks.appendingPathComponent(".root.qcow2.old")
+        let oldNVRAM = package.url.appendingPathComponent(".nvram.old")
+        try? fm.removeItem(at: oldRoot)
+        try? fm.removeItem(at: oldNVRAM)
+        if fm.fileExists(atPath: overlay.path) { try fm.moveItem(at: overlay, to: oldRoot) }
+        if fm.fileExists(atPath: nvram.path) { try fm.moveItem(at: nvram, to: oldNVRAM) }
+        do {
+            try fm.moveItem(at: newNVRAM, to: nvram)
+            try fm.moveItem(at: newRoot, to: overlay) // last: DeviceState.exists() keys on it
+        } catch {
+            try? fm.removeItem(at: nvram)
+            try? fm.moveItem(at: oldNVRAM, to: nvram)
+            try? fm.moveItem(at: oldRoot, to: overlay)
+            throw error
+        }
+        try? fm.removeItem(at: oldRoot)
+        try? fm.removeItem(at: oldNVRAM)
     }
 
     public static func delete(_ package: VMPackage, id: String) throws {

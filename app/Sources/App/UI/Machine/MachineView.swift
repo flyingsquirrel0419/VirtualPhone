@@ -65,13 +65,22 @@ struct MachineView: View {
         }
     }
 
+    private var canDismiss: Bool {
+        switch controller.state {
+        case .idle, .stopped, .failed: return true
+        default: return false
+        }
+    }
+
     private var topBar: some View {
         HStack {
             Button {
-                if controller.state.isLive { confirmStop = true } else { dismiss() }
+                if controller.state.isLive { confirmStop = true } else if canDismiss { dismiss() }
             } label: {
                 Label("Back", systemImage: "chevron.left")
             }
+            // Leaving while QEMU boots or shuts down would orphan it: wait.
+            .disabled(!controller.state.isLive && !canDismiss)
             Spacer()
             if controller.isMock { StatusBadge(text: "Mock", color: .purple) }
             PhaseBadge(console: controller.console)
@@ -102,7 +111,7 @@ struct MachineView: View {
                 Divider()
                 Button { fullscreen = true } label: { Label("Fullscreen", systemImage: "arrow.up.left.and.arrow.down.right") }
                 Toggle(isOn: $overlay) { Label("Debug overlay", systemImage: "gauge") }
-                if !controller.state.isLive {
+                if canDismiss {
                     Button { dismiss() } label: { Label("Close", systemImage: "xmark") }
                 }
             } label: {

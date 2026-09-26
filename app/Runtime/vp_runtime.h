@@ -143,7 +143,7 @@ void vp_emulator_invalidate_display(vp_emulator *emu);
 void vp_emulator_get_metrics(vp_emulator *emu, vp_metrics *out);
 vp_state vp_emulator_state(const vp_emulator *emu);
 uint32_t vp_emulator_capabilities(const vp_emulator *emu);
-/* Valid until the next failing call on this emulator. Never NULL. */
+/* A copy owned by the calling thread, valid until its next call. Never NULL. */
 const char *vp_emulator_last_error(vp_emulator *emu);
 const char *vp_state_name(vp_state state);
 
