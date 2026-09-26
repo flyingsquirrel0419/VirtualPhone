@@ -1,0 +1,54 @@
+# 001 — Bootstrap (v0.1)
+
+## Goal
+
+Private repository, Linux bootstrap, upstream survey and pins, CI on Linux and macOS, the
+emulator built as an iOS library, a SwiftUI shell app, and an `.ipa` produced automatically as
+an Actions artifact. Guest boot is not part of v0.1.
+
+## What changed
+
+- **Upstream decision.** Build the MakrSas/Inferno `ios` fork (ChefKiss Inferno turned into an
+  in-process library, with display/input/NCM embed API) at a pinned SHA rather than patching
+  ChefKiss master ourselves. Details and the runtime facts learned upstream: docs/UPSTREAM.md.
+- **Toolchain.** `macos-26` + Xcode 26.6 pinned. Xcode 27 exists only as the `xcode-27` preview
+  image in September 2026, so it is exercised by a non-blocking nightly job instead of gating.
+- **Runtime bridge** `app/Runtime/vp_runtime.{h,c}`: the only emulator surface Swift sees.
+  Resolves symbols by name, owns the emulator thread and a state machine, reports capabilities.
+- **VirtualPhoneCore**: all logic that does not need UIKit, built and tested on Linux.
+- **App**: device library, settings, running screen, diagnostics, JIT probe, mock runtime.
+- **Pipeline**: linux-ci, ios-build (reusable), release (clean build + gate), nightly,
+  dependency-check; forbidden-file/secret scanner, IPA verifier, SBOM, release notes.
+
+## Tests
+
+- Python: 22 tests (lockfile policy, IPA verifier, forbidden scanner incl. the repository itself).
+- Swift core: 27 XCTests on Linux (config/migration, packages, argv, coordinates, JIT decision,
+  logging, semver).
+- C bridge: 4 scenarios against `tests/emulator/mock_qemu.c` with gcc+ASan/UBSan,
+  clang+ASan/UBSan, and clang+TSan repeated 100×.
+- ABI: `tools/deps/check_abi.py` checks 23 declarations of the pinned emulator against the
+  bridge's mirror header.
+- Physical device: NOT RUN.
+
+## Problems found and how they were solved
+
+| Problem | Found by | Fix |
+|---|---|---|
+| Foundation `replaceItemAt` fails on Linux | Swift tests | atomic save via `rename(2)` |
+| `"1.2.3-"` parsed as valid semver | Swift tests | keep empty split components |
+| Calls through function pointers typed differently from the callee (UB) | clang `-fsanitize=function` | `vp_inferno_abi.h` mirrors the emulator's exact types; CI checks them |
+| `wait()` could return before `STOPPED` was published → `destroy()` refused; then (first fix) before the STOPPED callback ran | clang and TSan runs in CI (flaky) | publish STOPPED → deliver callback → signal `done`; 400× stress under TSan and ASan |
+| ChefKiss master's `RunState.paused` is 4, the fork's 3 | ABI checker | documented; the checker blocks a silent change on update |
+| bash 3.2 on macOS runners has no associative arrays | review | awk lookup in build-ios-deps.sh |
+| First push to a new repo does not trigger path-filtered workflows | CI | manual dispatch for the first run |
+
+## Remaining issues
+
+- Guest boot untested (v0.2). The argv follows Inferno-iOS; our own boot verification is next.
+- No app icon. CGImage-per-frame display (Metal later, once measured).
+- macOS minutes on a private repo are billed at a multiple; caches and path filters keep runs rare.
+
+## Benchmark changes
+
+None measured (no device run).
