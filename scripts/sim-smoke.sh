@@ -37,7 +37,7 @@ xcrun simctl bootstatus "$UDID" -b > /dev/null
 xcrun simctl uninstall "$UDID" "$BUNDLE" 2>/dev/null || true
 xcrun simctl install "$UDID" "$APP"
 
-since="$(date +%s)"
+touch "$OUT/.started"
 launch() { xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" "$@" | awk '{print $NF}'; }
 alive() { kill -0 "$1" 2>/dev/null; }
 
@@ -72,7 +72,7 @@ check "$OUT/app-console-run.log" "Shell ready after" "console tail detected the 
 grep -F "[ERROR]" "$OUT"/app-*.log && fail "errors in the app log"
 
 # A crash anywhere in the run leaves a report behind.
-crashes="$(find "$HOME/Library/Logs/DiagnosticReports" -newermt "@$since" -name 'VirtualPhone*' 2>/dev/null || true)"
+crashes="$(find "$HOME/Library/Logs/DiagnosticReports" -newer "$OUT/.started" -name 'VirtualPhone*' 2>/dev/null || true)"
 if [ -n "$crashes" ]; then
     while IFS= read -r f; do cp "$f" "$OUT/" 2>/dev/null || true; done <<<"$crashes"
     fail "crash report(s): $crashes"
