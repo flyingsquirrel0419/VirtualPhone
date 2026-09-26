@@ -65,9 +65,13 @@ case "$(uname -s)" in
     Darwin) LIB=libqemu-aarch64-softmmu.dylib ;;
     *)      LIB=libqemu-aarch64-softmmu.so ;;
 esac
-# The fork is only ever built with (Apple) clang; GCC cannot prove some of its
-# qemu_build_not_reached() paths unreachable and stops with a compile error.
+# The fork is only ever built with Apple clang, whose optimiser removes some
+# qemu_build_not_reached() calls that GCC and upstream clang 18 cannot prove
+# dead, so they stop with a compile error. -fno-inline defines __NO_INLINE__,
+# which turns those into runtime asserts. This library only has to run the
+# bridge tests, not guests, so the lost inlining does not matter.
 export CC="${CC:-clang}" CXX="${CXX:-clang++}"
+HOST_CFLAGS="-fno-inline"
 
 if [ ! -f "$BUILD/meson/build.ninja" ]; then
     "$MESON" setup "$BUILD/meson" "$SRC" \
@@ -77,6 +81,7 @@ if [ ! -f "$BUILD/meson/build.ninja" ]; then
         -Dcoreaudio=disabled -Dcurl=disabled -Dlibssh=disabled -Dbzip2=disabled \
         -Dvnc=enabled -Dvnc_jpeg=disabled -Dvnc_sasl=disabled \
         -Dtools=disabled \
+        -Dc_args="$HOST_CFLAGS" -Dcpp_args="$HOST_CFLAGS" \
         -Dc_link_args="-Wl,-rpath,$HOST_PREFIX/lib"
 fi
 ninja -C "$BUILD/meson" -j "$JOBS" "$LIB"
