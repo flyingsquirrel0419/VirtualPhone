@@ -26,6 +26,7 @@ fi
 xcrun --sdk iphoneos --show-sdk-version
 
 export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1
-brew install --quiet meson ninja pkg-config autoconf automake libtool m4 qemu
+brew install --quiet meson ninja pkg-config cmake autoconf automake libtool m4 qemu
 if [ -n "${GITHUB_PATH:-}" ]; then echo "$(brew --prefix m4)/bin" >> "$GITHUB_PATH"; fi
 meson --version
+cmake --version | sed -n 1p

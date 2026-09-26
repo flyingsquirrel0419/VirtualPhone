@@ -40,8 +40,12 @@ that. The `ios` fork carries them (from its README and tree):
   `debug, internal-error, io-error, paused(3), …`; in ChefKiss master `paused` is index 4.
   `tools/deps/check_abi.py` checks the values the bridge relies on against the pinned tree.
 
-VirtualPhone therefore **pins the fork** and adds nothing to it yet (`emulator/patches/series`
-is empty). Our own changes live in the runtime bridge (`app/Runtime`) instead.
+VirtualPhone therefore **pins the fork**. The only patch pins two meson subprojects the fork
+tracks by branch — `libyuv` (`main`, a CMake subproject added 2026-09-17 for the display scaler)
+and `mlib` (`master`) — to exact commits (`emulator/patches/0001-…`, `deps.lock` → `subprojects`).
+`keycodemapdb` is already pinned upstream. Inferno-iOS's own CI last built successfully on
+2026-09-11, before libyuv arrived, so its build recipe predates the CMake requirement.
+Our own changes live in the runtime bridge (`app/Runtime`).
 
 ## Build instructions (as established upstream)
 

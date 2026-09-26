@@ -1,0 +1,40 @@
+From ac600bd5888d079af85691dd4df84a99a5b1521a Mon Sep 17 00:00:00 2001
+From: VirtualPhone <noreply@virtualphone.invalid>
+Date: Sat, 26 Sep 2026 15:13:55 +0900
+Subject: [PATCH] subprojects: pin libyuv and mlib wraps to commits
+
+The ios fork tracks libyuv 'main' and mlib 'master', so every build could
+pull different code. Pin them to the commits VirtualPhone was first built
+with; update them together with the emulator pin (deps.lock).
+---
+ subprojects/libyuv.wrap | 2 +-
+ subprojects/mlib.wrap   | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/subprojects/libyuv.wrap b/subprojects/libyuv.wrap
+index 3dcf84f..ca26392 100644
+--- a/subprojects/libyuv.wrap
++++ b/subprojects/libyuv.wrap
+@@ -1,6 +1,6 @@
+ [wrap-git]
+ url = https://chromium.googlesource.com/libyuv/libyuv
+-revision = main
++revision = 7320155784bdfefb69db8edddca37ecacf7e5198
+ depth = 1
+ method = cmake
+ 
+diff --git a/subprojects/mlib.wrap b/subprojects/mlib.wrap
+index 5522fa4..50a49ce 100644
+--- a/subprojects/mlib.wrap
++++ b/subprojects/mlib.wrap
+@@ -1,6 +1,6 @@
+ [wrap-git]
+ url = https://github.com/P-p-H-d/mlib
+-revision = master
++revision = 4acdfe4c12040150e2e531517a005a1aace6b794
+ depth = 1
+ patch_directory = mlib
+ 
+-- 
+2.43.0
+

@@ -20,10 +20,12 @@ CROSS="$BUILD/cross-ios-arm64.txt"
 
 [ -f "$SRC/.vp-patched" ] || { echo "no prepared emulator tree at $SRC; run emulator/scripts/fetch.sh" >&2; exit 1; }
 [ -d "$PREFIX/lib" ] || { echo "no dependency prefix at $PREFIX; run emulator/scripts/build-ios-deps.sh" >&2; exit 1; }
-want="$(python3 "$LOCK" hash)"
+want="$(python3 "$LOCK" deps-hash)"
 have="$(cat "$PREFIX/.deps-lock-hash" 2>/dev/null || true)"
 [ "$want" = "$have" ] || { echo "prefix was built from a different deps.lock ($have != $want)" >&2; exit 1; }
 
+CMAKE="$(command -v cmake || true)"
+[ -n "$CMAKE" ] || { echo "cmake not found (brew install cmake): the libyuv subproject needs it" >&2; exit 1; }
 SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
 BIN="$(dirname "$(xcrun --sdk iphoneos --find ar)")"
 FLAGS="'-arch', 'arm64', '-isysroot', '$SDK', '-mios-version-min=$DEPLOY'"
@@ -40,6 +42,7 @@ ar         = '$BIN/ar'
 strip      = '$BIN/strip'
 ranlib     = '$BIN/ranlib'
 pkg-config = 'pkg-config'
+cmake      = '$CMAKE'
 
 [built-in options]
 c_args         = [$FLAGS, '-I$PREFIX/include']
@@ -62,6 +65,19 @@ endian     = 'little'
 [properties]
 needs_exe_wrapper = true
 pkg_config_libdir = ['$PREFIX/lib/pkgconfig']
+
+# libyuv (hw/display) is a CMake subproject. These go into the CMake toolchain
+# meson generates: build for iOS against the same SDK, and leave JPEG out so
+# CMake cannot pick up a macOS libjpeg from Homebrew.
+[cmake]
+CMAKE_SYSTEM_NAME = 'iOS'
+CMAKE_SYSTEM_PROCESSOR = 'aarch64'
+CMAKE_OSX_SYSROOT = '$SDK'
+CMAKE_OSX_ARCHITECTURES = 'arm64'
+CMAKE_OSX_DEPLOYMENT_TARGET = '$DEPLOY'
+CMAKE_FIND_ROOT_PATH = '$PREFIX'
+LIBYUV_DISABLE_JPEG = 'ON'
+CMAKE_DISABLE_FIND_PACKAGE_JPEG = 'TRUE'
 EOF
 
 if [ ! -f "$BUILD/meson/build.ninja" ]; then

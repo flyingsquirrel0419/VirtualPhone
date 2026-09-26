@@ -9,6 +9,29 @@
     "version": "InfernoiOS-1.0.0rc1_QEMU-10.2.2_10.1.3_hybrid",
     "license": "GPL-3.0 (ChefKiss parts AGPL-3.0)"
   },
+  "subprojects": [
+    {
+      "name": "libyuv",
+      "repository": "https://chromium.googlesource.com/libyuv/libyuv",
+      "commit": "7320155784bdfefb69db8edddca37ecacf7e5198",
+      "license": "BSD-3-Clause",
+      "pinned_by": "emulator/patches/0001-subprojects-pin-libyuv-and-mlib-wraps.patch"
+    },
+    {
+      "name": "mlib",
+      "repository": "https://github.com/P-p-H-d/mlib",
+      "commit": "4acdfe4c12040150e2e531517a005a1aace6b794",
+      "license": "BSD-2-Clause",
+      "pinned_by": "emulator/patches/0001-subprojects-pin-libyuv-and-mlib-wraps.patch"
+    },
+    {
+      "name": "keycodemapdb",
+      "repository": "https://gitlab.com/qemu-project/keycodemapdb.git",
+      "commit": "f5772a62ec52591ff6870b7e8ef32482371f22c6",
+      "license": "GPL-2.0-or-later OR BSD-3-Clause",
+      "pinned_by": "upstream wrap"
+    }
+  ],
   "references": [
     {
       "name": "chefkiss-inferno",

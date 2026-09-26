@@ -42,6 +42,10 @@ an Actions artifact. Guest boot is not part of v0.1.
 | ChefKiss master's `RunState.paused` is 4, the fork's 3 | ABI checker | documented; the checker blocks a silent change on update |
 | bash 3.2 on macOS runners has no associative arrays | review | awk lookup in build-ios-deps.sh |
 | First push to a new repo does not trigger path-filtered workflows | CI | manual dispatch for the first run |
+| `xcodebuild -version \| head -1` aborts xcodebuild with SIGPIPE under pipefail | macOS CI (runner/tool) | read the whole output (`awk 'NR==1'`) |
+| `nm \| grep -q` export check could SIGPIPE under pipefail | review | list exports once, grep a here-string |
+| meson: `Unable to find CMake` in `hw/display` (libyuv, added to the fork 2026-09-17) | macOS CI (dependency) | cmake in bootstrap + `[cmake]` iOS toolchain section in the cross-file |
+| fork's `libyuv.wrap`/`mlib.wrap` track `main`/`master` (not reproducible) | same investigation | patch 0001 pins both; fetch.sh rejects unpinned wraps |
 
 ## Remaining issues
 

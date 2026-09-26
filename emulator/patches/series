@@ -4,5 +4,4 @@
 # in emulator/README.md. Keep this list short: prefer the runtime bridge
 # (app/Runtime) over patching QEMU.
 #
-# (none yet — the pinned MakrSas/Inferno `ios` fork already exports the embed
-#  API the bridge needs)
+0001-subprojects-pin-libyuv-and-mlib-wraps.patch   # reproducibility: wraps tracked main/master

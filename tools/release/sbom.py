@@ -45,6 +45,16 @@ def build(lock: dict, version: str, commit: str, created: str) -> dict:
             "copyrightText": "NOASSERTION",
         },
     ]
+    for sub in lock.get("subprojects", []):
+        packages.append({
+            "SPDXID": spdx_id(sub["name"]),
+            "name": sub["name"],
+            "versionInfo": sub["commit"],
+            "downloadLocation": f"git+{sub['repository']}@{sub['commit']}",
+            "licenseConcluded": "NOASSERTION",
+            "licenseDeclared": sub["license"],
+            "copyrightText": "NOASSERTION",
+        })
     for pkg in lock["packages"]:
         packages.append({
             "SPDXID": spdx_id(pkg["name"]),

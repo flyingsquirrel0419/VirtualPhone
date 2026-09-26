@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PREFIX="${PREFIX:-$ROOT/prefix}"
 
 "$ROOT/emulator/scripts/fetch.sh"
-want="$(python3 "$ROOT/tools/deps/lockfile.py" hash)"
+want="$(python3 "$ROOT/tools/deps/lockfile.py" deps-hash)"
 if [ "$(cat "$PREFIX/.deps-lock-hash" 2>/dev/null || true)" != "$want" ]; then
     rm -rf "$PREFIX"
     "$ROOT/emulator/scripts/build-ios-deps.sh"

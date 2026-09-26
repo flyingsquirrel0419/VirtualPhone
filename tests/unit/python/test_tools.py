@@ -84,9 +84,21 @@ class LockfileTests(unittest.TestCase):
         changed = copy.deepcopy(self.data)
         changed["packages"][0]["version"] = "9.9.9"
         self.assertNotEqual(a, lockfile.digest(changed))
+        emu_only = copy.deepcopy(self.data)
+        emu_only["emulator"]["commit"] = "f" * 40
+        deps = ("toolchain", "packages")
+        self.assertEqual(lockfile.digest(self.data, deps), lockfile.digest(emu_only, deps))
+        self.assertNotEqual(a, lockfile.digest(emu_only))
         cosmetic = copy.deepcopy(self.data)
         cosmetic["comment"] = "different"
         self.assertEqual(a, lockfile.digest(cosmetic))
+
+    def test_subprojects_must_be_pinned(self):
+        self.assertTrue(self.data["subprojects"])
+        bad = copy.deepcopy(self.data)
+        bad["subprojects"][0]["commit"] = "main"
+        with self.assertRaises(lockfile.LockError):
+            lockfile.validate(bad)
 
     def test_get(self):
         self.assertEqual(lockfile.get(self.data, "toolchain.arch"), "arm64")

@@ -54,5 +54,23 @@ if [ -f "$PATCHES/series" ]; then
         count=$((count + 1))
     done < "$PATCHES/series"
 fi
+# Every meson subproject must fetch exactly the commit deps.lock records:
+# upstream wraps that track a branch are pinned by our patches.
+while read -r name commit; do
+    wrap="$DEST/subprojects/$name.wrap"
+    [ -f "$wrap" ] || { echo "emulator: deps.lock lists subproject $name but $wrap is missing" >&2; exit 1; }
+    rev="$(awk -F' *= *' '$1 == "revision" {print $2}' "$wrap")"
+    if [ "$rev" != "$commit" ]; then
+        echo "emulator: $name.wrap fetches '$rev', deps.lock pins $commit" >&2
+        exit 1
+    fi
+done < <(python3 "$LOCK" subprojects)
+for wrap in "$DEST"/subprojects/*.wrap; do
+    rev="$(awk -F' *= *' '$1 == "revision" {print $2}' "$wrap")"
+    if ! [[ "$rev" =~ ^[0-9a-f]{40}$ ]]; then
+        echo "emulator: $(basename "$wrap") is not pinned to a commit (revision = $rev)" >&2
+        exit 1
+    fi
+done
 touch "$DEST/.vp-patched"
 echo "emulator: $DEST at ${COMMIT:0:12}, $count patch(es) applied"

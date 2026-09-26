@@ -4,7 +4,9 @@
     lockfile.py validate [PATH]          exit non-zero on a malformed lock
     lockfile.py get KEY [PATH]           print one dotted value (emulator.commit)
     lockfile.py packages [PATH]          one line per package: name file sha256 url...
-    lockfile.py hash [PATH]              stable digest of the pinned inputs (cache key)
+    lockfile.py subprojects [PATH]       one line per meson subproject: name commit
+    lockfile.py hash [PATH]              stable digest of all pinned inputs (cache key)
+    lockfile.py deps-hash [PATH]         digest of what the iOS dependency prefix depends on
 
 Shell scripts use this instead of parsing JSON themselves.
 """
@@ -52,6 +54,16 @@ def validate(data: dict) -> None:
     if not emu["repository"].startswith("https://"):
         raise LockError("emulator.repository must be an https URL")
 
+    names = set()
+    for sub in data.get("subprojects", []):
+        if not NAME.match(sub.get("name", "")) or sub["name"] in names:
+            raise LockError(f"bad or duplicate subproject: {sub.get('name')!r}")
+        names.add(sub["name"])
+        if not SHA1.match(sub.get("commit", "")):
+            raise LockError(f"subproject {sub['name']}: commit must be a full SHA")
+        if not sub.get("repository", "").startswith("https://") or not sub.get("license"):
+            raise LockError(f"subproject {sub['name']}: https repository and license are required")
+
     for ref in data.get("references", []):
         if not SHA1.match(ref.get("commit", "")):
             raise LockError(f"reference {ref.get('name')}: commit must be a full SHA")
@@ -95,8 +107,8 @@ def get(data: dict, dotted: str):
     return node
 
 
-def digest(data: dict) -> str:
-    pinned = {k: data[k] for k in ("emulator", "toolchain", "packages")}
+def digest(data: dict, keys: tuple[str, ...] = ("emulator", "subprojects", "toolchain", "packages")) -> str:
+    pinned = {k: data.get(k) for k in keys}
     blob = json.dumps(pinned, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(blob).hexdigest()
 
@@ -119,8 +131,13 @@ def main(argv: list[str]) -> int:
         elif cmd == "packages":
             for pkg in data["packages"]:
                 print(" ".join([pkg["name"], pkg["file"], pkg["sha256"], *pkg["urls"]]))
+        elif cmd == "subprojects":
+            for sub in data.get("subprojects", []):
+                print(sub["name"], sub["commit"])
         elif cmd == "hash":
             print(digest(data))
+        elif cmd == "deps-hash":
+            print(digest(data, ("toolchain", "packages")))
         else:
             print(f"unknown command: {cmd}", file=sys.stderr)
             return 2

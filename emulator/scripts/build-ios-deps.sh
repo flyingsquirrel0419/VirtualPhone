@@ -157,6 +157,6 @@ fetch lzfse
 make -C lzfse -j"$JOBS" CC="$CC" INSTALL_PREFIX="$PREFIX"
 make -C lzfse install INSTALL_PREFIX="$PREFIX"
 
-python3 "$LOCK" hash > "$PREFIX/.deps-lock-hash"
+python3 "$LOCK" deps-hash > "$PREFIX/.deps-lock-hash"
 echo "==> done; $PREFIX/lib:"
 find "$PREFIX/lib" -maxdepth 1 -type f -name "*.a" | sort | sed "s|^|    |"
