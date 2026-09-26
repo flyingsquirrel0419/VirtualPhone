@@ -71,7 +71,8 @@ Goal: kernel boot output captured.
 - [x] Per-device copies of the guest's mutable state, created and reset together with the overlay
       (disk and SEP replay counters never diverge); relative backing path survives container moves
 - [x] Config schema 2 with migration (existing devices keep booting the shared image)
-- [ ] Snapshots (metadata, restore UI) — after overlays are proven on a device
+- [x] Snapshots: overlay + state copies saved/restored together, Settings UI (iOS compile not yet
+      verified: CI blocked by billing, see devlog 004)
 - [ ] Device test: boot from an overlay, reset, clone (NOT RUN)
 
 ## v0.9 — Performance and stability
