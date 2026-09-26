@@ -10,6 +10,14 @@ T8030 (A13) machine — iBoot, XNU, launchd, SpringBoard — through
 > **No Apple firmware, IPSW, kernel or key is included** in this repository or its releases —
 > you prepare the guest from your own sources.
 
+<p align="center">
+  <img src="docs/screenshots/machine-screen-mock.png" height="420" alt="Running screen on the mock runtime (iOS Simulator)">
+  &nbsp;
+  <img src="docs/screenshots/machine-console-mock.png" height="420" alt="Console tab with boot phases on the mock runtime (iOS Simulator)">
+</p>
+<p align="center"><sub>The app in the iOS Simulator on the <b>mock runtime</b> (a test pattern and a fake boot log),
+captured by the CI smoke test — not an emulated iOS guest.</sub></p>
+
 ## Current status: v0.1 (bootstrap)
 
 | Milestone | State |
@@ -17,6 +25,7 @@ T8030 (A13) machine — iBoot, XNU, launchd, SpringBoard — through
 | App launches, VM manager, mock runtime | built in CI; physical-device test **not run** |
 | Inferno library built and bundled | built in CI |
 | Console, boot phases, QMP; bridge driven against the real Inferno library on Linux | done; phone test **not run** |
+| App launches and runs (mock runtime) in the iOS Simulator | checked by CI on every build |
 | Guest boot / SpringBoard on a phone | not yet verified (needs your guest image) |
 | Touch (single contact), buttons, network recovery, file transfer, IPA install | implemented; phone test **not run** |
 | Per-device qcow2 overlays (base image never written), reset, clone | implemented; phone test **not run** |

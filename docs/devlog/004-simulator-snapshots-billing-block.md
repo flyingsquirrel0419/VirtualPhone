@@ -26,3 +26,11 @@ account payments have failed or your spending limit needs to be increased."* The
 repository's Actions allowance is used up (macOS minutes count ten times). Needs the account
 owner: fix the payment method or raise the Actions spending limit (Settings → Billing & plans).
 After that, re-run `iOS Build` on `main` to verify ea19e3d and the simulator job.
+
+## Resolution
+
+The repository was made public (after scanning every blob in its history for forbidden files and
+secrets: none), which lifts the Actions billing block for standard runners. Run 36239072646 on
+`main`: Linux gate, IPA build and the simulator smoke test all PASS — the simulator now opens the
+app, so the device memory entitlements were the cause of the first refusal. Screenshots from that
+run are in `docs/screenshots/*-mock.png`.

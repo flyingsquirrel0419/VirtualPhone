@@ -21,6 +21,11 @@ Boot pipeline and guest services. Everything that needs a phone or a guest image
 - Network shell transport (guest bash calls back over slirp) with console fallback; fetch files
   from the guest; the phone's battery state in the guest.
 
+### Added in 0.2.0-alpha.2
+- Device snapshots (overlay + state copies together), Settings UI.
+- iOS Simulator smoke test in CI (mock runtime), screenshots in the README.
+- The repository is public.
+
 ### Known issues
 - Not verified on a phone or with a guest: boot, console input, QMP, network recovery, file
   transfer, IPA install, overlays. One touch contact at a time. One boot per app launch.

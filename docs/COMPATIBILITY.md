@@ -25,6 +25,12 @@ One touch contact at a time: the emulated multitouch panel is driven by a single
 | Console, boot phases, QMP on a phone | NOT RUN |
 | Network recovery, file transfer, IPA install | NOT RUN |
 
+## Simulator results
+
+| Test | Result |
+|---|---|
+| App launch, demo device, mock boot, first frame, console boot phases, no crash (`scripts/sim-smoke.sh`) | PASS (iPhone 17 Pro simulator, iOS 26, run 36239072646) |
+
 ## Host (Linux) results
 
 | Test | Result |
