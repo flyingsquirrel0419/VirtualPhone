@@ -111,6 +111,50 @@ final class DeviceStateTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: pkg.url.appendingPathComponent("nvram").path), [])
     }
 
+    /// Take a snapshot, let "the guest" write, restore: overlay and state come back together.
+    func testSnapshotsRoundTrip() throws {
+        let data = dir.appendingPathComponent("InfernoData")
+        try FileManager.default.createDirectory(at: data, withIntermediateDirectories: true)
+        var files = GuestFiles.resolve(FirmwareLinks(), documents: dir, isUsableFile: { _ in true }).files
+        for role in GuestFiles.Role.allCases where role != .root {
+            let url = files.paths[role]!
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("v1".utf8).write(to: url)
+        }
+        try Data(repeating: 0xAB, count: 4 << 20).write(to: data.appendingPathComponent("root"))
+        files = GuestFiles.resolve(FirmwareLinks(), documents: dir).files
+        let pkg = try VMPackage.create(in: dir.appendingPathComponent("Devices"), configuration: MachineConfiguration(name: "S"))
+        XCTAssertThrowsError(try DeviceSnapshots.take(pkg, name: "too early"))
+        try DeviceState.prepare(pkg, files: files)
+        let used = DeviceState.resolve(files, for: pkg)
+
+        let snap = try DeviceSnapshots.take(pkg, name: "clean", at: Date(timeIntervalSince1970: 1_800_000_000))
+        XCTAssertEqual(DeviceSnapshots.list(pkg).map(\.name), ["clean"])
+        XCTAssertGreaterThan(snap.bytes, 0)
+
+        // The guest runs: SEP state and disk change.
+        try Data("v2".utf8).write(to: URL(fileURLWithPath: used.path(.sepNVRAM)))
+        let overlay = DeviceState.overlayURL(in: pkg)
+        let before = try Data(contentsOf: overlay)
+        if let qemuImg = Self.qemuImg {
+            let io = qemuImg.replacingOccurrences(of: "qemu-img", with: "qemu-io")
+            XCTAssertEqual(try run(io, ["-c", "write -P 0x11 0 64k", overlay.path]).0, 0)
+            XCTAssertNotEqual(try Data(contentsOf: overlay), before)
+        }
+
+        try DeviceSnapshots.restore(pkg, id: snap.id)
+        XCTAssertEqual(try String(contentsOfFile: used.path(.sepNVRAM)), "v1")
+        XCTAssertEqual(try Data(contentsOf: overlay), before)
+        if let qemuImg = Self.qemuImg { XCTAssertEqual(try run(qemuImg, ["check", overlay.path]).0, 0) }
+        XCTAssertThrowsError(try DeviceSnapshots.restore(pkg, id: "nope"))
+
+        try DeviceSnapshots.delete(pkg, id: snap.id)
+        XCTAssertEqual(DeviceSnapshots.list(pkg), [])
+        // Restoring removed no leftovers beside the package's files.
+        let names = try FileManager.default.contentsOfDirectory(atPath: pkg.url.path)
+        XCTAssertFalse(names.contains { $0.hasSuffix(".restore") })
+    }
+
     func testSchema1MigratesWithProtectionOff() throws {
         let v1 = #"{"schema":1,"id":"6F9619FF-8B86-D011-B42D-00C04FC964FF","name":"Old","machine":"t8030","device":"iPhone11","cpuCores":4,"memoryMB":2048,"translatorCacheMB":128,"displayPreset":"iphone11","audio":false,"network":true}"#
         let c = try MachineConfiguration.decode(Data(v1.utf8))

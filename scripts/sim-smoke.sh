@@ -13,7 +13,18 @@ OUT="${OUT:-$ROOT/build/sim-smoke}"
 BUNDLE="${BUNDLE_ID:-dev.virtualphone.app}"
 WAIT="${WAIT:-10}"
 mkdir -p "$OUT"
-fail() { echo "sim-smoke: FAIL: $*" >&2; exit 1; }
+touch "$OUT/.started"
+UDID=""
+diagnose() {
+    [ -n "$UDID" ] || return 0
+    echo "--- simulator log (last 3 min, VirtualPhone) ---" >&2
+    xcrun simctl spawn "$UDID" log show --last 3m --style compact \
+        --predicate 'process == "VirtualPhone" OR eventMessage CONTAINS[c] "virtualphone"' > "$OUT/simulator.log" 2>&1 || true
+    tail -60 "$OUT/simulator.log" >&2 || true
+    find "$HOME/Library/Logs/DiagnosticReports" -name 'VirtualPhone*' -newer "$OUT/.started" -exec cp {} "$OUT/" \; 2>/dev/null || true
+    for f in "$OUT"/VirtualPhone*.ips; do [ -f "$f" ] && { echo "--- $f ---" >&2; head -80 "$f" >&2; }; done
+}
+fail() { echo "sim-smoke: FAIL: $*" >&2; diagnose; exit 1; }
 
 APP="$(PLATFORM=simulator "$ROOT/app/build.sh" | tail -1)"
 [ -d "$APP" ] || fail "no app built ($APP)"
@@ -37,8 +48,11 @@ xcrun simctl bootstatus "$UDID" -b > /dev/null
 xcrun simctl uninstall "$UDID" "$BUNDLE" 2>/dev/null || true
 xcrun simctl install "$UDID" "$APP"
 
-touch "$OUT/.started"
-launch() { xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" "$@" | awk '{print $NF}'; }
+launch() {
+    local out
+    out="$(xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE" "$@" 2>&1)" || { echo "$out" >&2; fail "launch refused"; }
+    echo "$out" | awk '{print $NF}'
+}
 alive() { kill -0 "$1" 2>/dev/null; }
 
 echo "==> screen: auto demo on the mock runtime"

@@ -125,9 +125,14 @@ echo "==> Sign (ad-hoc)"
 if [ -n "$EMULATOR_DYLIB" ]; then
     codesign --force --sign - --timestamp=none "$APP/Frameworks/$(basename "$EMULATOR_DYLIB")"
 fi
-codesign --force --sign - --timestamp=none --entitlements "$APPSRC/Entitlements.plist" "$APP"
+if [ "$PLATFORM" = simulator ]; then
+    # The memory entitlements mean nothing in the simulator; sign without them.
+    codesign --force --sign - --timestamp=none "$APP"
+else
+    codesign --force --sign - --timestamp=none --entitlements "$APPSRC/Entitlements.plist" "$APP"
+fi
 codesign --verify --deep --strict "$APP"
-codesign -d --entitlements - "$APP" >/dev/null
+[ "$PLATFORM" = simulator ] || codesign -d --entitlements - "$APP" >/dev/null
 
 if [ "$PLATFORM" = simulator ]; then
     echo "$APP"

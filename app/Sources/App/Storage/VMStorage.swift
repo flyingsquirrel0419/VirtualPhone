@@ -78,6 +78,24 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func takeSnapshot(_ package: VMPackage, name: String) {
+        attempt("Snapshot") {
+            let snap = try DeviceSnapshots.take(package, name: name)
+            AppLogger.shared.log(.storage, "\(package.configuration.name): snapshot \(snap.name) (\(snap.bytes) bytes)")
+        }
+    }
+
+    func restoreSnapshot(_ package: VMPackage, id: String) {
+        attempt("Restore") {
+            try DeviceSnapshots.restore(package, id: id)
+            AppLogger.shared.log(.storage, "\(package.configuration.name): restored snapshot \(id)")
+        }
+    }
+
+    func deleteSnapshot(_ package: VMPackage, id: String) {
+        attempt("Delete snapshot") { try DeviceSnapshots.delete(package, id: id) }
+    }
+
     func save(_ package: VMPackage) {
         attempt("Save") { try package.save() }
     }

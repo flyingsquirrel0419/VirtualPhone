@@ -6,6 +6,10 @@ struct MachineSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var package: VMPackage
     @State private var customBootArgs: Bool
+    @State private var snapshots: [DeviceSnapshots.Snapshot] = []
+    @State private var askSnapshotName = false
+    @State private var snapshotName = ""
+    @State private var confirmRestore: DeviceSnapshots.Snapshot?
 
     init(package: VMPackage) {
         _package = State(initialValue: package)
@@ -13,6 +17,8 @@ struct MachineSettingsView: View {
     }
 
     private var config: Binding<MachineConfiguration> { $package.configuration }
+
+    private func reloadSnapshots() { snapshots = DeviceSnapshots.list(package) }
 
     var body: some View {
         NavigationStack {
@@ -40,6 +46,35 @@ struct MachineSettingsView: View {
                     Text("Storage")
                 } footer: {
                     Text("On: the guest writes to this device's own overlay and state copies; the prepared image is never changed, and Reset returns the device to it. Off: the guest writes to the shared files directly.")
+                }
+                if DeviceState.exists(in: package) {
+                    Section {
+                        ForEach(snapshots, id: \.id) { snap in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(snap.name)
+                                    Text("\(snap.created.formatted(date: .abbreviated, time: .shortened)) · \(ByteCountFormatter.string(fromByteCount: snap.bytes, countStyle: .file))")
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Button("Restore") { confirmRestore = snap }.buttonStyle(.borderless)
+                            }
+                            .swipeActions {
+                                Button(role: .destructive) {
+                                    model.deleteSnapshot(package, id: snap.id)
+                                    reloadSnapshots()
+                                } label: { Label("Delete", systemImage: "trash") }
+                            }
+                        }
+                        Button("Take Snapshot") {
+                            snapshotName = "Snapshot \(snapshots.count + 1)"
+                            askSnapshotName = true
+                        }
+                    } header: {
+                        Text("Snapshots")
+                    } footer: {
+                        Text("A snapshot keeps this device's disk overlay and its state copies together. Taken and restored while the machine is off.")
+                    }
                 }
                 Section {
                     Toggle("Network", isOn: config.network)
@@ -100,6 +135,20 @@ struct MachineSettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .onAppear(perform: reloadSnapshots)
+            .alert("Snapshot name", isPresented: $askSnapshotName) {
+                TextField("Name", text: $snapshotName)
+                Button("Take") { model.takeSnapshot(package, name: snapshotName); reloadSnapshots() }
+                Button("Cancel", role: .cancel) {}
+            }
+            .confirmationDialog("Restore this snapshot?", isPresented: Binding(get: { confirmRestore != nil }, set: { if !$0 { confirmRestore = nil } }),
+                                titleVisibility: .visible) {
+                Button("Restore", role: .destructive) {
+                    if let snap = confirmRestore { model.restoreSnapshot(package, id: snap.id) }
+                }
+            } message: {
+                Text("The device's current disk and state are replaced by the snapshot.")
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
