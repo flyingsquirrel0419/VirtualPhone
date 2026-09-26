@@ -30,7 +30,7 @@ Goal: kernel boot output captured.
 ## v0.3 — SpringBoard
 
 - [x] First-frame time recorded (overlay, BOOT log)
-- [ ] Framebuffer → Metal layer path, once a device measurement shows the CGImage path limits FPS
+- [x] Metal renderer (opt-in, `-VPRenderer metal` / setting); default stays Core Graphics until measured on a device
 - [ ] Device test: SpringBoard visible on a phone (NOT RUN)
 
 ## v0.4 — Touch and buttons
@@ -43,7 +43,7 @@ Goal: kernel boot output captured.
 ## v0.5 — Networking
 
 - [x] *Reconnect Guest Network* (`ipconfig set en0 DHCP` over the console), link status in overlay
-- [ ] Automatic recovery on link drop (needs a device to observe the drop signature)
+- [x] Automatic recovery: a console-side reachability check every minute re-requests an address
 
 ## v0.6 — Guest agent and file transfer
 
@@ -52,7 +52,8 @@ Goal: kernel boot output captured.
 - [x] Network shell transport (guest bash on a socket via `/dev/tcp`), console fallback;
       tested against a real bash calling back
 - [x] Fetch files from the guest (cksum-checked); host battery → guest SMC
-- [ ] Console-only file transfer when the guest has no network; time zone sync
+- [x] Time zone sync (phone's zone, once per boot)
+- [ ] Console-only file transfer when the guest has no network (not implemented)
 - [ ] Device test (NOT RUN)
 
 ## v0.7 — IPA installation
@@ -77,9 +78,46 @@ Goal: kernel boot output captured.
 
 ## v0.9 — Performance and stability
 
+- [x] Two independent review rounds; 26 findings fixed (races, leaks, retries, data safety)
+- [x] In-app self-test on the iOS runtime; simulator smoke test in CI
+- [x] Host CPU/RAM, FPS, frame counters, phase timings in the overlay
+- [ ] Baselines on a named device (docs/PERFORMANCE.md) — NOT RUN
+
 - docs/PERFORMANCE.md baselines vs. candidates on a named device; translator cache tuning; crash
   safety of VM data
 
-## v1.0 — Stable
+## v1.0 — Definition of Done
 
-The Definition of Done list in the project brief, every item checked with evidence.
+Status of every item of the project brief's 1.0 checklist. "NOT RUN" means it needs a physical
+iPhone with JIT and the user's own guest image; nothing here claims otherwise. 1.0.0 ships as
+`v1.0.0-beta.N` until those items are observed; `v1.0.0` is tagged from the same code afterwards.
+
+| Item | Status | Evidence |
+|---|---|---|
+| Linux clean bootstrap works | done | `scripts/bootstrap-linux.sh`, `scripts/lint.sh` |
+| GitHub repository configured | done | public repo, branches main/dev, 6 workflows |
+| CI green | done | Linux CI, iOS Build, Simulator smoke, Emulator host test |
+| macOS clean build works | done | release builds use no caches |
+| IPA generated automatically | done | `ios-build.yml` artifact on every main build |
+| Release workflow works | done | v0.1.0-alpha.1, v0.2.0-alpha.1/2 |
+| App launches on supported physical iPhone | NOT RUN | launches in the iOS Simulator (smoke test) |
+| JIT availability is detected | NOT RUN on device | probe runs in the simulator self-test |
+| Virtual T8030 initializes | NOT RUN | real library initialises on Linux (`none` machine); t8030 needs Apple files |
+| iOS 14.x guest boots | NOT RUN | console/phase pipeline tested with the mock |
+| SpringBoard renders | NOT RUN | framebuffer path (CG and Metal) tested with the mock |
+| Touch works | NOT RUN | mapping unit-tested; single contact only (emulator limit) |
+| Side/home/volume buttons work | NOT RUN | F-key mapping tested against mock and real library |
+| Guest networking works | NOT RUN | recovery commands + auto-recovery implemented |
+| Guest shell works | NOT RUN | console framing + network shell tested against real bash |
+| Host → guest file transfer works | NOT RUN | transfer server + cksum tested (Linux, simulator self-test) |
+| IPA install works for compatible IPA | NOT RUN | inspector, guest tar, install steps tested with fixtures |
+| VM configuration persists | done | schema 2 + migration, atomic saves (tests) |
+| Multiple VM configs supported | done | library, create/clone/rename/delete (tests, self-test) |
+| Clone works | done | package clone incl. overlay state (tests, self-test) |
+| Diagnostics work | done in simulator | diagnostics.zip export; not exercised on a device |
+| Crash does not silently destroy VM data | done | atomic writes, staged snapshots, unclean-shutdown marker, overlays |
+| Proprietary Apple files are not distributed | done | forbidden-file scan on tree, full history and every IPA |
+| Third-party licenses documented | done | THIRD_PARTY_NOTICES.md, SBOM per release |
+| GitHub Release contains valid IPA | done | verified after download for each release |
+| SHA256 published | done | SHA256SUMS per release |
+| README installation instructions verified | NOT RUN | needs a sideload onto a phone |

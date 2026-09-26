@@ -18,7 +18,7 @@ T8030 (A13) machine — iBoot, XNU, launchd, SpringBoard — through
 <p align="center"><sub>The app in the iOS Simulator on the <b>mock runtime</b> (a test pattern and a fake boot log),
 captured by the CI smoke test — not an emulated iOS guest.</sub></p>
 
-## Current status: v0.1 (bootstrap)
+## Current status: 1.0.0 beta
 
 | Milestone | State |
 |---|---|
@@ -30,7 +30,9 @@ captured by the CI smoke test — not an emulated iOS guest.</sub></p>
 | Touch (single contact), buttons, network recovery, file transfer, IPA install | implemented; phone test **not run** |
 | Per-device qcow2 overlays (base image never written), reset, clone | implemented; phone test **not run** |
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) and [CHANGELOG.md](CHANGELOG.md).
+Feature-complete for 1.0; everything that needs a physical iPhone and a guest image is **not yet
+verified** — the full checklist with evidence is in [docs/ROADMAP.md](docs/ROADMAP.md). See also
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Supported
 

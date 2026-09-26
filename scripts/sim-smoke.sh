@@ -105,7 +105,8 @@ check "$OUT/app-screen-run.log" "First frame after" "first frame reached the scr
 check "$OUT/app-console-run.log" "Kernel after" "console tail detected the kernel phase"
 check "$OUT/app-console-run.log" "Shell ready after" "console tail detected the shell phase"
 check "$OUT/app-metal-run.log" "Renderer: Metal" "Metal renderer selected"
-check "$OUT/app-metal-run.log" "First frame after" "first frame drawn through Metal"
+check "$OUT/app-metal-run.log" "First frame after" "first frame reached the Metal view"
+check "$OUT/app-metal-run.log" "Metal drew its first frame" "Metal draw completed on the main thread"
 grep "SELFTEST" "$OUT/app-selftest.log" | sed 's/^/    /'
 check "$OUT/app-selftest.log" "SELFTEST DONE passed=7 failed=0" "in-app self-test on the iOS runtime"
 grep -F "[ERROR]" "$OUT"/app-*.log && fail "errors in the app log"

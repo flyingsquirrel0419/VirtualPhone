@@ -18,6 +18,7 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     private var writing = 0
     /// Command buffers still sampling each texture (MTKView keeps up to three in flight).
     private var inFlight = [0, 0, 0]
+    private var drewFrame = false
     private(set) var size = (width: 0, height: 0)
     weak var view: MTKView?
 
@@ -86,7 +87,6 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
 
     func draw(in view: MTKView) {
-        lock.lock()
         guard let pass = view.currentRenderPassDescriptor, let drawable = view.currentDrawable,
               let buffer = queue.makeCommandBuffer(),
               let encoder = buffer.makeRenderCommandEncoder(descriptor: pass) else { return }
@@ -96,7 +96,10 @@ final class MetalFrameRenderer: NSObject, MTKViewDelegate {
         let frame = size
         let generation = textures.first.map { ObjectIdentifier($0) }
         if index >= 0 { inFlight[index] += 1 }
+        let first = index >= 0 && !drewFrame
+        if first { drewFrame = true }
         lock.unlock()
+        if first { AppLogger.shared.log(.display, "Metal drew its first frame (\(frame.width)x\(frame.height))") }
         if let texture, frame.width > 0 {
             let drawableSize = view.drawableSize
             let mapper = CoordinateMapper(view: Size2D(width: Double(drawableSize.width), height: Double(drawableSize.height)),

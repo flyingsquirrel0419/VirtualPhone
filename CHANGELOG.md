@@ -4,6 +4,29 @@ All notable changes. Versions follow [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-26
+
+Feature-complete for the 1.0 scope. Published as `v1.0.0-beta.1`: the items of the 1.0 checklist
+that need a physical iPhone and a guest image are NOT RUN (docs/ROADMAP.md lists each one).
+
+### Added
+- Metal renderer (opt-in), host CPU in the overlay, ring/silent switch.
+- Background upkeep: guest time zone from the phone, automatic network recovery.
+- In-app self-test (`-VPSelfTest YES`) on the iOS runtime, run by the simulator smoke test with
+  the Metal path.
+- The running machine survives leaving its screen; a banner in the device list leads back.
+
+### Fixed
+- 26 findings from two review rounds: bridge pause/resume/stop races (now serialised, TSan-clean),
+  terminal states, failed-start cleanup, a Mach port leak, non-idempotent retries after a timeout,
+  a dead network shell after the guest's network drops, uncatchable write exceptions, read errors
+  taken as EOF, fetch overwriting a file on failure, snapshot restore rollback, Metal textures
+  overwritten in flight.
+
+### Known issues
+- Not verified on a phone or with a guest (see the checklist). One touch contact at a time.
+  One boot per app launch. Console-only file transfer is not implemented.
+
 ## [0.2.0] - 2026-09-26
 
 Boot pipeline and guest services. Everything that needs a phone or a guest image is
